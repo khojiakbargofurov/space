@@ -62,3 +62,45 @@ canvas {
   color: #000;
   background: #9fe8a0;
 }
+
+.flight-readout {
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 6px;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #9fd4ff;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre;
+  z-index: 10;
+}
+
+.controls-hint {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #b8b8b8;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.controls-row kbd {
+  font: inherit;
+  color: #e8e8e8;
+}

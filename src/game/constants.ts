@@ -166,6 +166,147 @@ export const POST = {
   GRAIN_OPACITY: 0.07,
 } as const
 
+/**
+ * Player ship flight model (stage 3: pure Newtonian, no gravity yet; gravity joins in stage 4).
+ * Ship axes: forward = -Z, up = +Y, right = +X. Accelerations in units/s^2, rates in rad/s.
+ */
+export const SHIP = {
+  /** Spawn point and the point the ship faces at spawn. */
+  SPAWN_POSITION: [0, 18, 320] as const,
+  SPAWN_LOOK_AT: [0, 0, 0] as const,
+  MAIN_THRUST: 22,
+  /** Main thrust multiplier while boosting. */
+  BOOST_MULTIPLIER: 2.6,
+  REVERSE_THRUST: 9,
+  STRAFE_THRUST: 8,
+  /** Auto-retro brake acceleration against current velocity. */
+  BRAKE_THRUST: 16,
+  /** Speed cap (safety rail against runaway velocity). */
+  MAX_SPEED: 380,
+  /** Commanded max rotation rates (body axes). */
+  MAX_PITCH_RATE: 1.5,
+  MAX_YAW_RATE: 1.1,
+  MAX_ROLL_RATE: 2.4,
+  /** How fast the attitude thrusters reach the commanded rate (1/s). Also stops spin on release. */
+  ANGULAR_RESPONSE: 6,
+  /** Main engine spool-up / spool-down rate (1/s). */
+  ENGINE_SPOOL: 5,
+  /** Frame delta is clamped to this before integrating (tab switches, hitches). */
+  MAX_DT: 0.05,
+  /** Engine nozzle positions (ship-local), exhaust leaves along +Z. */
+  NOZZLES: [
+    [-0.62, -0.06, 2.15],
+    [0.62, -0.06, 2.15],
+  ] as const,
+} as const
+
+export const CONTROLS = {
+  /** Mouse (pointer lock): rad of rotation per pixel of mouse travel. */
+  MOUSE_SENSITIVITY: 0.0022,
+  INVERT_Y: false,
+} as const
+
+/** Third-person chase camera. Offsets are ship-local. */
+export const CHASE_CAM = {
+  FOV: 62,
+  OFFSET: [0, 1.35, 7.2] as const,
+  /** Camera looks at this ship-local point (ahead of the nose). */
+  LOOK_AHEAD: [0, 0.55, -8] as const,
+  /** Orientation follow rate (1/s): lower = camera swings more lazily behind turns. */
+  ROTATION_FOLLOW: 7,
+  /** Ship-local acceleration shifts the camera back by this many units per (unit/s^2). */
+  ACCEL_PULLBACK: 0.045,
+  ACCEL_FOLLOW: 4,
+  /** Extra distance per unit/s of speed, capped. */
+  SPEED_PULLBACK: 0.006,
+  SPEED_PULLBACK_MAX: 2.2,
+  /** FOV widening at full boost. */
+  BOOST_FOV_KICK: 9,
+  /** Shake amplitude (units) at full boost. */
+  BOOST_SHAKE: 0.035,
+  MIN_DISTANCE: 3,
+  MAX_DISTANCE: 22,
+  /** Distance change per wheel notch (multiplicative). */
+  ZOOM_STEP: 1.1,
+  /** Seconds of the swoop from the orbit view into the chase position. */
+  INTRO_SEC: 1.6,
+} as const
+
+/** First-person view from the cockpit. */
+export const COCKPIT_CAM = {
+  FOV: 72,
+  /** Eye position, ship-local. */
+  EYE: [0, 0.46, -0.5] as const,
+  BOOST_FOV_KICK: 6,
+  BOOST_SHAKE: 0.008,
+} as const
+
+/** Procedural ship look. Colors are sRGB hex; glow values are HDR multipliers (feed the bloom). */
+export const SHIP_LOOK = {
+  HULL_COLOR: '#d4d7dd',
+  HULL_METALNESS: 0.45,
+  HULL_ROUGHNESS: 0.42,
+  TRIM_COLOR: '#2b3039',
+  ACCENT_COLOR: '#d8743a',
+  CANOPY_COLOR: '#0a1824',
+  /** Reflection strength of the baked nebula on the hull. */
+  ENV_INTENSITY: 3,
+  ENGINE_GLOW_COLOR: '#7cc4ff',
+  ENGINE_GLOW_IDLE: 0.12,
+  ENGINE_GLOW_MAX: 9,
+  /** Port (left) and starboard (right) wingtip lights, tail strobe. */
+  NAV_PORT_COLOR: '#ff3b30',
+  NAV_STARBOARD_COLOR: '#36ff7a',
+  NAV_GLOW: 4,
+  STROBE_GLOW: 14,
+  STROBE_PERIOD: 1.4,
+  STROBE_FLASH: 0.06,
+} as const
+
+/** Light the ship (the lensing view is self-lit and ignores these). */
+export const SHIP_LIGHTING = {
+  /** The accretion disk acts as a warm point light at the origin. */
+  DISK_LIGHT_COLOR: '#ffb37a',
+  DISK_LIGHT_INTENSITY: 1600,
+  DISK_LIGHT_DECAY: 1.2,
+  /** Cool fill from the galactic band. */
+  FILL_COLOR: '#9fb6ff',
+  FILL_INTENSITY: 0.45,
+  AMBIENT_COLOR: '#3a4060',
+  AMBIENT_INTENSITY: 0.25,
+} as const
+
+/** Thruster particles. Speeds are relative to the ship; colors blend hot → cool over a particle's life. */
+export const EXHAUST = {
+  MAIN_SPEED: 16,
+  MAIN_SPREAD: 1.1,
+  MAIN_LIFE: 0.38,
+  /** Share of the quality preset's particle budget emitted per MAIN_LIFE at full throttle. */
+  MAIN_BUDGET_SHARE: 0.85,
+  MAIN_SIZE: 0.2,
+  MAIN_HOT: '#e6f3ff',
+  MAIN_COOL: '#5b3dff',
+  MAIN_INTENSITY: 1.8,
+  /** Reaction-control puffs (strafe, reverse, brake). */
+  RCS_SPEED: 9,
+  RCS_SPREAD: 1.6,
+  RCS_LIFE: 0.35,
+  RCS_RATE: 90,
+  RCS_SIZE: 0.14,
+  RCS_HOT: '#ffffff',
+  RCS_COOL: '#7d8798',
+  RCS_INTENSITY: 0.9,
+  /** Particles grow by this factor over their life. */
+  GROWTH: 1.8,
+  /** Pixel size cap so close particles don't flood the screen. */
+  MAX_POINT_PX: 36,
+} as const
+
+/** Flight debug readout refresh (the real HUD arrives in stage 4). */
+export const READOUT = {
+  INTERVAL: 0.1,
+} as const
+
 export const DEBUG = {
   /** How often the FPS readout refreshes, in seconds. */
   FPS_SAMPLE_INTERVAL: 0.5,

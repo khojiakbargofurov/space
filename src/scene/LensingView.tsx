@@ -5,6 +5,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  type CubeTexture,
   type PerspectiveCamera,
   ShaderMaterial,
   Vector3,
@@ -12,7 +13,6 @@ import {
 import { BLACK_HOLE, DISK, GALAXY_BAND_NORMAL, LENSING, QUALITY_PRESETS, STARFIELD } from '../game/constants'
 import { useGameStore } from '../game/store'
 import { lensingFragment, lensingVertex } from '../shaders/lensing'
-import { useNebulaCubeMap } from './useNebulaCubeMap'
 
 const RS = BLACK_HOLE.SCHWARZSCHILD_RADIUS
 
@@ -32,10 +32,9 @@ function starProbabilities(starCount: number): number[] {
  * lensed nebula + stars, the event horizon shadow, photon ring and the accretion disk (all images).
  * Drawn first; writes depth so later meshes are hidden behind the horizon and the dense disk.
  */
-export function LensingView() {
+export function LensingView({ nebula }: { nebula: CubeTexture | null }) {
   const quality = useGameStore((s) => s.quality)
   const preset = QUALITY_PRESETS[quality]
-  const nebula = useNebulaCubeMap()
 
   const geometry = useMemo(() => {
     const g = new BufferGeometry()

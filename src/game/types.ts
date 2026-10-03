@@ -18,3 +18,23 @@ export interface QualityPreset {
   /** Cube map face size for the baked nebula background. */
   nebulaResolution: number
 }
+
+export type CameraMode = 'chase' | 'cockpit'
+
+/** Pilot commands for one frame. Axes are -1..1 (rotation: fraction of max rate). */
+export interface FlightInput {
+  /** +1 main engine, -1 reverse thrusters. */
+  thrust: number
+  /** +1 right, -1 left. */
+  strafeX: number
+  /** +1 up, -1 down. */
+  strafeY: number
+  /** +1 nose up. */
+  pitch: number
+  /** +1 nose left. */
+  yaw: number
+  /** +1 roll left. */
+  roll: number
+  boost: boolean
+  brake: boolean
+}

@@ -2,9 +2,8 @@ import { Canvas } from '@react-three/fiber'
 import { CAMERA, QUALITY_PRESETS } from '../game/constants'
 import { useGameStore } from '../game/store'
 import { FpsMeter } from './FpsMeter'
-import { LensingView } from './LensingView'
-import { OrbitCamera } from './OrbitCamera'
 import { PostEffects } from './PostEffects'
+import { World } from './World'
 
 export function GameCanvas() {
   const quality = useGameStore((s) => s.quality)
@@ -21,8 +20,7 @@ export function GameCanvas() {
       }}
       camera={{ fov: CAMERA.FOV, near: CAMERA.NEAR, far: CAMERA.FAR, position: [...CAMERA.START_POSITION] }}
     >
-      <OrbitCamera />
-      <LensingView />
+      <World />
       <PostEffects />
       <FpsMeter />
     </Canvas>
