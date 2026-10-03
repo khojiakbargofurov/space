@@ -17,7 +17,13 @@ export interface QualityPreset {
   diskOctaves: number
   /** Cube map face size for the baked nebula background. */
   nebulaResolution: number
+  /** Width segments of planet spheres (height segments = half). */
+  planetSegments: number
+  /** fbm octaves for planet surfaces. */
+  planetOctaves: number
 }
+
+export type PlanetKind = 'rocky' | 'gas' | 'ice' | 'lava'
 
 export type CameraMode = 'chase' | 'cockpit'
 

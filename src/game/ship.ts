@@ -1,5 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from 'three'
-import { SHIP } from './constants'
+import { BLACK_HOLE, SHIP } from './constants'
+import { integrateFlight } from './physics'
+import type { Planet } from './planets'
 import type { FlightInput } from './types'
 
 /**
@@ -20,6 +22,12 @@ export interface ShipState {
   rcs: Vector3
   /** Ship-local linear acceleration applied this frame (thrust + brake), units/s^2. */
   localAccel: Vector3
+  /** World-space engine acceleration this frame (brake excluded: it acts on velocity directly). */
+  thrust: Vector3
+  /** World-space gravitational acceleration at the ship (hole + planets), units/s^2. */
+  gravity: Vector3
+  /** True if the hull touched a planet surface this frame. */
+  contact: boolean
 }
 
 export function createShipState(): ShipState {
@@ -32,6 +40,9 @@ export function createShipState(): ShipState {
     boost: 0,
     rcs: new Vector3(),
     localAccel: new Vector3(),
+    thrust: new Vector3(),
+    gravity: new Vector3(),
+    contact: false,
   }
 }
 
@@ -49,19 +60,27 @@ const _b = new Vector3()
 const _q = new Quaternion()
 const _qInv = new Quaternion()
 
-/** Puts the ship at the spawn point, at rest, facing SPAWN_LOOK_AT. */
+/**
+ * Puts the ship at the spawn point facing SPAWN_LOOK_AT, coasting on a circular orbit around the hole
+ * (scaled by SPAWN_ORBIT_FRACTION) in the same direction as the planets.
+ */
 export function resetShip(s: ShipState): void {
   s.position.set(...SHIP.SPAWN_POSITION)
   _a.set(...SHIP.SPAWN_LOOK_AT)
   // Matrix4.lookAt(eye, target, up) points +Z from target to eye, so -Z (our forward) faces the target.
   _m.lookAt(s.position, _a, _up)
   s.quaternion.setFromRotationMatrix(_m)
-  s.velocity.set(0, 0, 0)
+  const r = s.position.length()
+  const vCirc = Math.sqrt(BLACK_HOLE.MASS_GM / r) * SHIP.SPAWN_ORBIT_FRACTION
+  s.velocity.crossVectors(_up, s.position).normalize().multiplyScalar(vCirc)
   s.angularVelocity.set(0, 0, 0)
   s.throttle = 0
   s.boost = 0
   s.rcs.set(0, 0, 0)
   s.localAccel.set(0, 0, 0)
+  s.thrust.set(0, 0, 0)
+  s.gravity.set(0, 0, 0)
+  s.contact = false
 }
 
 resetShip(ship)
@@ -72,11 +91,18 @@ function approach(rate: number, dt: number): number {
 }
 
 /**
- * Advances the ship by dt under pilot input. Newtonian: thrust changes velocity, nothing
- * slows the ship except the pilot's own thrusters. Attitude thrusters hold the commanded
- * rotation rate (and stop rotation when the stick is released).
+ * Advances the ship by dt (ship seconds) under pilot input and gravity. Newtonian: thrust and gravity
+ * change velocity, nothing slows the ship except its own thrusters. Attitude thrusters hold the
+ * commanded rotation rate (and stop rotation when the stick is released).
+ * `timeScale` = universe seconds per ship second (the planets move that much faster).
  */
-export function stepShip(s: ShipState, input: FlightInput, rawDt: number): void {
+export function stepShip(
+  s: ShipState,
+  input: FlightInput,
+  rawDt: number,
+  planets: readonly Planet[],
+  timeScale: number,
+): void {
   const dt = Math.min(rawDt, SHIP.MAX_DT)
   if (dt <= 0) return
 
@@ -104,8 +130,7 @@ export function stepShip(s: ShipState, input: FlightInput, rawDt: number): void 
   )
   s.rcs.set(input.strafeX, input.strafeY, reverse)
 
-  _a.copy(s.localAccel).applyQuaternion(s.quaternion)
-  s.velocity.addScaledVector(_a, dt)
+  s.thrust.copy(s.localAccel).applyQuaternion(s.quaternion)
 
   // --- brake: retro thrust straight against velocity, never overshooting to zero ---
   if (input.brake) {
@@ -121,6 +146,6 @@ export function stepShip(s: ShipState, input: FlightInput, rawDt: number): void 
     }
   }
 
+  s.contact = integrateFlight(s.position, s.velocity, s.thrust, dt, planets, timeScale, s.gravity)
   s.velocity.clampLength(0, SHIP.MAX_SPEED)
-  s.position.addScaledVector(s.velocity, dt)
 }

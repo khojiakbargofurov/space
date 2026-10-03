@@ -1,0 +1,130 @@
+import { useEffect, useRef } from 'react'
+import { planets } from '../game/planets'
+import { useGameStore } from '../game/store'
+import { type HudElements, hudDisplay } from './hudDisplay'
+
+function one(root: HTMLElement, key: string): HTMLElement {
+  const el = root.querySelector<HTMLElement>(`[data-hud="${key}"]`)
+  if (!el) throw new Error(`HUD element missing: ${key}`)
+  return el
+}
+
+function all(root: HTMLElement, key: string): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(`[data-hud="${key}"]`))
+}
+
+/**
+ * Flight HUD: time dilation gauge with the ship and universe clocks, score, flight data, warnings,
+ * bonus toasts, planet markers and the prograde marker. Static markup only; the values are written
+ * by the in-canvas HudUpdater through `hudDisplay`.
+ */
+export function Hud() {
+  const flying = useGameStore((s) => s.phase === 'playing')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const root = ref.current
+    if (!root) return
+    const elements: HudElements = {
+      root,
+      dilation: one(root, 'dilation'),
+      dilationBar: one(root, 'dilation-bar'),
+      shipClock: one(root, 'ship-clock'),
+      universeClock: one(root, 'universe-clock'),
+      debt: one(root, 'debt'),
+      score: one(root, 'score'),
+      rate: one(root, 'rate'),
+      speed: one(root, 'speed'),
+      radial: one(root, 'radial'),
+      distance: one(root, 'distance'),
+      gravity: one(root, 'gravity'),
+      engine: one(root, 'engine'),
+      peak: one(root, 'peak'),
+      warning: one(root, 'warning'),
+      warningText: one(root, 'warning-text'),
+      dangerBar: one(root, 'danger-bar'),
+      toastBox: one(root, 'toasts'),
+      toasts: all(root, 'toast'),
+      markers: all(root, 'marker'),
+      markerBoxes: all(root, 'marker-box'),
+      markerDistances: all(root, 'marker-distance'),
+      prograde: one(root, 'prograde'),
+    }
+    hudDisplay.el = elements
+    return () => {
+      hudDisplay.el = null
+    }
+  }, [flying])
+
+  if (!flying) return null
+  return (
+    <div ref={ref} className="hud">
+      <div className="hud-markers">
+        {planets.map((p) => (
+          <div key={p.name} className="hud-marker" data-hud="marker">
+            <div className="hud-marker-box" data-hud="marker-box" />
+            <div className="hud-marker-arrow" />
+            <div className="hud-marker-label">
+              <span className="hud-marker-name">{p.name}</span>
+              <span data-hud="marker-distance" />
+            </div>
+          </div>
+        ))}
+        <div className="hud-prograde" data-hud="prograde" />
+      </div>
+
+      <div className="hud-top">
+        <div className="hud-label">TIME DILATION</div>
+        <div className="hud-dilation" data-hud="dilation">×1.000</div>
+        <div className="hud-bar">
+          <div className="hud-bar-fill" data-hud="dilation-bar" />
+        </div>
+        <div className="hud-clocks">
+          <div className="hud-clock">
+            <span className="hud-label">SHIP</span>
+            <span data-hud="ship-clock">00:00:00.0</span>
+          </div>
+          <div className="hud-clock hud-clock-universe">
+            <span className="hud-label">UNIVERSE</span>
+            <span data-hud="universe-clock">00:00:00.0</span>
+          </div>
+        </div>
+        <div className="hud-debt">
+          <span className="hud-label">TIME DEBT</span> <span data-hud="debt">0.0 s</span>
+        </div>
+      </div>
+
+      <div className="hud-score">
+        <div className="hud-label">SCORE</div>
+        <div className="hud-score-value" data-hud="score">0</div>
+        <div className="hud-score-rate" data-hud="rate">+0/s</div>
+      </div>
+
+      <div className="hud-flight">
+        <div className="hud-row"><span className="hud-label">SPD</span><span data-hud="speed" /></div>
+        <div className="hud-row"><span className="hud-label">V-RAD</span><span data-hud="radial" /></div>
+        <div className="hud-row"><span className="hud-label">DIST</span><span data-hud="distance" /></div>
+        <div className="hud-row"><span className="hud-label">GRAV</span><span data-hud="gravity" /></div>
+        <div className="hud-row"><span className="hud-label">ENG</span><span data-hud="engine" /></div>
+        <div className="hud-row"><span className="hud-label">PEAK</span><span data-hud="peak" /></div>
+      </div>
+
+      <div className="hud-warning" data-hud="warning">
+        <div data-hud="warning-text" />
+        <div className="hud-danger">
+          <div className="hud-danger-fill" data-hud="danger-bar" />
+        </div>
+      </div>
+
+      <div className="hud-toasts" data-hud="toasts">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="hud-toast" data-hud="toast">
+            <span className="hud-toast-title" />
+            <span className="hud-toast-detail" />
+            <span className="hud-toast-points" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

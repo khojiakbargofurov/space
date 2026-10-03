@@ -8,8 +8,11 @@ import type { QualityLevel, QualityPreset } from './types'
 export const BLACK_HOLE = {
   /** Schwarzschild radius rs: the event horizon. */
   SCHWARZSCHILD_RADIUS: 10,
-  /** Gravitational parameter G*M used for the Newtonian pull. Tuned for gameplay, not realism. */
-  MASS_GM: 4000,
+  /**
+   * Gravitational parameter G*M used for the Newtonian pull. Tuned for gameplay, not realism:
+   * gravity beats full boost thrust inside ~1.7 rs, so hovering there is impossible (orbit instead).
+   */
+  MASS_GM: 16000,
   /** Photon sphere, in units of rs. */
   PHOTON_SPHERE_RS: 1.5,
   /** Innermost stable circular orbit, in units of rs. */
@@ -21,6 +24,9 @@ export const GRAVITY = {
   SOFTENING: 0.5,
   /** Hard cap on gravitational acceleration magnitude (units/s^2). */
   MAX_ACCEL: 400,
+  /** Integration sub-step is at most this fraction of the local dynamical time sqrt(r^3 / GM). */
+  STEP_FACTOR: 0.02,
+  MAX_SUBSTEPS: 16,
 } as const
 
 export const DILATION = {
@@ -167,13 +173,19 @@ export const POST = {
 } as const
 
 /**
- * Player ship flight model (stage 3: pure Newtonian, no gravity yet; gravity joins in stage 4).
+ * Player ship flight model: Newtonian thrust plus gravity from the hole and the planets.
  * Ship axes: forward = -Z, up = +Y, right = +X. Accelerations in units/s^2, rates in rad/s.
  */
 export const SHIP = {
   /** Spawn point and the point the ship faces at spawn. */
   SPAWN_POSITION: [0, 18, 320] as const,
   SPAWN_LOOK_AT: [0, 0, 0] as const,
+  /** Spawn velocity as a fraction of the circular orbit speed there (0 = drop straight in). */
+  SPAWN_ORBIT_FRACTION: 1,
+  /** Collision radius against planet surfaces. */
+  COLLISION_RADIUS: 1.6,
+  /** Fraction of the inward speed kept (bounced back) on touching a planet. */
+  BOUNCE_RESTITUTION: 0.3,
   MAIN_THRUST: 22,
   /** Main thrust multiplier while boosting. */
   BOOST_MULTIPLIER: 2.6,
@@ -302,9 +314,141 @@ export const EXHAUST = {
   MAX_POINT_PX: 36,
 } as const
 
-/** Flight debug readout refresh (the real HUD arrives in stage 4). */
-export const READOUT = {
+/**
+ * Procedural planets on circular (slightly inclined) orbits around the hole. Their motion follows
+ * UNIVERSE time, so from deep in the well the outside system visibly speeds up.
+ * Each planet has real gravity (GM = surfaceGravity * radius^2), which makes slingshots possible.
+ */
+export const PLANETS = {
+  SEED: 7331,
+  COUNT: 5,
+  /** First orbit radius and the random spacing between successive orbits. */
+  MIN_ORBIT: 170,
+  ORBIT_GAP_MIN: 90,
+  ORBIT_GAP_MAX: 170,
+  /** No orbit within this distance plus the planet's gravity reach (SOI * GRAVITY_FADE) of the spawn radius. */
+  SPAWN_CLEARANCE: 60,
+  /** Max orbital inclination (radians) against the disk plane. */
+  MAX_INCLINATION: 0.22,
+  /** Max axial tilt (radians). */
+  MAX_TILT: 0.5,
+  /** Self-rotation in rad per universe second. */
+  SPIN_MIN: 0.02,
+  SPIN_MAX: 0.08,
+  /** Relative odds per kind. */
+  KIND_WEIGHTS: { rocky: 3, gas: 2, ice: 2, lava: 1.5 },
+  /** Radius range per kind (units). */
+  RADIUS: {
+    rocky: [6, 11],
+    gas: [17, 26],
+    ice: [8, 13],
+    lava: [6, 10],
+  },
+  /** Surface gravity range per kind (units/s^2). */
+  SURFACE_GRAVITY: {
+    rocky: [9, 14],
+    gas: [8, 11],
+    ice: [8, 12],
+    lava: [10, 15],
+  },
+  /** Chance that a gas giant (or, rarely, an ice world) has rings. */
+  GAS_RING_CHANCE: 0.75,
+  ICE_RING_CHANCE: 0.2,
+  /**
+   * Sphere of influence, in planet radii. Planet gravity is full inside it and fades smoothly to zero
+   * at SOI * GRAVITY_FADE (patched-conics style), so planets shape local flight without dragging the
+   * whole system around. Slingshots are measured inside it.
+   */
+  SOI_RADII: 9,
+  GRAVITY_FADE: 1.4,
+} as const
+
+/** Planet rendering. Colors are sRGB hex; light falls off with distance from the disk at the origin. */
+export const PLANET_LOOK = {
+  LIGHT_COLOR: '#ffcf9e',
+  /** Lit-side irradiance = LIGHT_INTENSITY / distance^LIGHT_DECAY. */
+  LIGHT_INTENSITY: 60,
+  LIGHT_DECAY: 0.65,
+  AMBIENT: '#0d1222',
+  /** Base noise frequency on the unit sphere. */
+  NOISE_SCALE: 2.2,
+  /** Number of latitude bands on gas giants. */
+  GAS_BANDS: 9,
+  /** Atmosphere shell radius (planet radii) and glow strength. */
+  ATMO_SCALE: 1.16,
+  ATMO_INTENSITY: 1.4,
+  /** Lava crack glow (HDR). */
+  LAVA_GLOW: 2.4,
+  RING_INNER: 1.45,
+  RING_OUTER: 2.5,
+  RING_OPACITY: 0.85,
+  PALETTES: {
+    rocky: [
+      ['#6b5640', '#c29d72', '#3d3229', '#ece6dc'],
+      ['#7a4030', '#d07a52', '#4a271e', '#f0e2d2'],
+      ['#56664f', '#aeb08a', '#363b31', '#eef2ea'],
+    ],
+    gas: [
+      ['#c48a52', '#efd9b4', '#8f4a2e', '#f5e8d0'],
+      ['#4f6fa8', '#bcd2ee', '#2d3f73', '#e8f0fa'],
+      ['#8a6aa0', '#e0cde8', '#4b3366', '#f3ebf7'],
+    ],
+    ice: [
+      ['#9fb9cf', '#e9f3fb', '#5f86a8', '#ffffff'],
+      ['#7fb5b0', '#dff4f0', '#3f7d7a', '#ffffff'],
+    ],
+    lava: [
+      ['#1a1210', '#3b2a24', '#ff6a1a', '#ffd27a'],
+      ['#141418', '#2e2a30', '#ff3d2e', '#ffb35c'],
+    ],
+  },
+  ATMO_COLORS: {
+    rocky: '#e8a87a',
+    gas: '#f2d2a8',
+    ice: '#9cc8ff',
+    lava: '#ff7a3a',
+  },
+} as const
+
+/** Planet name generator: two or three syllables plus a catalogue numeral. */
+export const PLANET_NAMES = {
+  SYLLABLES: ['ka', 'vel', 'dra', 'mor', 'thi', 'sen', 'ul', 'qua', 'ri', 'zo', 'ne', 'bar', 'ix', 'lo', 'tam', 'ze', 'or', 'phe'],
+  NUMERALS: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'],
+} as const
+
+/** Scoring. The core currency is TIME DEBT: universe seconds that passed beyond your own. */
+export const SCORE = {
+  POINTS_PER_DEBT_SEC: 100,
+} as const
+
+/** Gravity assist around a moving planet: speed gained from the planet's pull inside its sphere of influence. */
+export const SLINGSHOT = {
+  MIN_GAIN: 1.5,
+  POINTS_PER_SPEED: 120,
+} as const
+
+/** Periapsis pass around the hole: bonus when the closest approach dips below MAX_RS. */
+export const CLOSE_PASS = {
+  MAX_RS: 3,
+  /** Bonus = POINTS * (dilation at periapsis - 1). */
+  POINTS: 2000,
+  /** Seconds before another close pass can score (stops jitter while hovering from spamming it). */
+  COOLDOWN: 5,
+} as const
+
+/** Heads-up display. */
+export const HUD = {
+  /** Text refresh interval in seconds (markers move every frame). */
   INTERVAL: 0.1,
+  /** Dilation bar is full at this factor. */
+  DILATION_BAR_MAX: 3,
+  /** Screen-edge margin for clamped off-screen markers (px). */
+  MARKER_MARGIN: 36,
+  /** Prograde marker distance ahead of the ship (units). */
+  PROGRADE_DISTANCE: 200,
+  /** Hide the prograde marker below this speed. */
+  PROGRADE_MIN_SPEED: 0.5,
+  TOAST_SEC: 3.2,
 } as const
 
 export const DEBUG = {
@@ -319,14 +463,14 @@ export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high']
 export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
   low: {
     dpr: 1, msaa: 0, starCount: 3000, lensingSteps: 48, bloom: false, particles: 200,
-    diskOctaves: 3, nebulaResolution: 256,
+    diskOctaves: 3, nebulaResolution: 256, planetSegments: 32, planetOctaves: 3,
   },
   medium: {
     dpr: 1.5, msaa: 4, starCount: 7000, lensingSteps: 96, bloom: true, particles: 600,
-    diskOctaves: 4, nebulaResolution: 512,
+    diskOctaves: 4, nebulaResolution: 512, planetSegments: 64, planetOctaves: 4,
   },
   high: {
     dpr: 2, msaa: 4, starCount: 15000, lensingSteps: 160, bloom: true, particles: 1500,
-    diskOctaves: 6, nebulaResolution: 768,
+    diskOctaves: 6, nebulaResolution: 768, planetSegments: 96, planetOctaves: 5,
   },
 }

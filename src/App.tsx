@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { GameCanvas } from './scene/GameCanvas'
 import { ControlsHint } from './ui/ControlsHint'
-import { FlightReadout } from './ui/FlightReadout'
 import { FpsCounter } from './ui/FpsCounter'
+import { Hud } from './ui/Hud'
 import { QualityPicker } from './ui/QualityPicker'
+import { planets } from './game/planets'
+import { resetRun } from './game/run'
 import { resetShip, ship } from './game/ship'
 import { useGameStore } from './game/store'
 
@@ -30,9 +32,12 @@ export default function App() {
         case 'KeyV':
           if (game.phase === 'playing') game.toggleCameraMode()
           break
-        // Back to the spawn point (proper death/restart arrives in stage 5).
+        // New run from the spawn point (proper death/restart arrives in stage 5).
         case 'KeyR':
-          if (game.phase === 'playing') resetShip(ship)
+          if (game.phase === 'playing') {
+            resetShip(ship)
+            resetRun(planets)
+          }
           break
       }
     }
@@ -43,9 +48,9 @@ export default function App() {
   return (
     <>
       <GameCanvas />
+      <Hud />
       <FpsCounter />
       <QualityPicker />
-      <FlightReadout />
       <ControlsHint />
     </>
   )

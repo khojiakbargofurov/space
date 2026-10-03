@@ -19,7 +19,7 @@ const FLIGHT_KEYS: [string, string][] = [
   ['X', 'brake'],
   ['V', 'chase / cockpit'],
   ['Wheel', 'chase distance'],
-  ['R', 'reset ship'],
+  ['R', 'new run'],
   ['Enter', 'orbit view'],
   ['H', 'hide help'],
 ]

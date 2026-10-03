@@ -8,13 +8,6 @@ interface GameState {
   showFps: boolean
   showHelp: boolean
   cameraMode: CameraMode
-  /** Seconds elapsed far from the black hole. */
-  universeTime: number
-  /** Proper time aboard the ship. */
-  shipTime: number
-  /** Current dilation factor (universe s per ship s). */
-  dilation: number
-  score: number
 
   setPhase: (phase: GamePhase) => void
   setQuality: (quality: QualityLevel) => void
@@ -22,21 +15,14 @@ interface GameState {
   toggleFps: () => void
   toggleHelp: () => void
   toggleCameraMode: () => void
-  /** Advance clocks by `shipDt` of ship time at the given dilation factor. */
-  advanceClocks: (shipDt: number, dilation: number) => void
-  reset: () => void
 }
 
-const initialRun = {
-  phase: 'menu' as GamePhase,
-  universeTime: 0,
-  shipTime: 0,
-  dilation: 1,
-  score: 0,
-}
-
+/**
+ * UI-level state that changes rarely. Per-frame values (ship, clocks, score) live in mutable
+ * module state (game/ship.ts, game/run.ts) so the render loop never triggers React updates.
+ */
 export const useGameStore = create<GameState>()((set) => ({
-  ...initialRun,
+  phase: 'menu',
   quality: DEFAULT_QUALITY,
   showFps: true,
   showHelp: true,
@@ -49,11 +35,4 @@ export const useGameStore = create<GameState>()((set) => ({
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),
   toggleHelp: () => set((s) => ({ showHelp: !s.showHelp })),
   toggleCameraMode: () => set((s) => ({ cameraMode: s.cameraMode === 'chase' ? 'cockpit' : 'chase' })),
-  advanceClocks: (shipDt, dilation) =>
-    set((s) => ({
-      shipTime: s.shipTime + shipDt,
-      universeTime: s.universeTime + shipDt * dilation,
-      dilation,
-    })),
-  reset: () => set(initialRun),
 }))
