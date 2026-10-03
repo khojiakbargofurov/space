@@ -2,11 +2,10 @@ import { useEffect } from 'react'
 import { GameCanvas } from './scene/GameCanvas'
 import { ControlsHint } from './ui/ControlsHint'
 import { FpsCounter } from './ui/FpsCounter'
+import { DeathScreen } from './ui/DeathScreen'
 import { Hud } from './ui/Hud'
 import { QualityPicker } from './ui/QualityPicker'
-import { planets } from './game/planets'
-import { resetRun } from './game/run'
-import { resetShip, ship } from './game/ship'
+import { restartRun } from './game/death'
 import { useGameStore } from './game/store'
 
 export default function App() {
@@ -25,19 +24,18 @@ export default function App() {
         case 'KeyH':
           game.toggleHelp()
           break
-        // Launch from the orbit view / back to it (menus arrive in stage 8).
+        // Launch from the orbit view / back to it (menus arrive in stage 8). After a death the wreck is
+        // cleared and a fresh ship waits at the spawn.
         case 'Enter':
-          game.setPhase(game.phase === 'playing' ? 'menu' : 'playing')
+          if (game.phase === 'dead') restartRun('menu')
+          else game.setPhase(game.phase === 'playing' ? 'menu' : 'playing')
           break
         case 'KeyV':
           if (game.phase === 'playing') game.toggleCameraMode()
           break
-        // New run from the spawn point (proper death/restart arrives in stage 5).
+        // New run from the spawn point (also the restart after a death).
         case 'KeyR':
-          if (game.phase === 'playing') {
-            resetShip(ship)
-            resetRun(planets)
-          }
+          if (game.phase === 'playing' || game.phase === 'dead') restartRun('playing')
           break
       }
     }
@@ -49,6 +47,7 @@ export default function App() {
     <>
       <GameCanvas />
       <Hud />
+      <DeathScreen />
       <FpsCounter />
       <QualityPicker />
       <ControlsHint />

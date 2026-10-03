@@ -1,7 +1,8 @@
 import type { Vector3 } from 'three'
-import { BLACK_HOLE, CLOSE_PASS, DANGER, SCORE, SLINGSHOT } from './constants'
+import { BLACK_HOLE, CLOSE_PASS, DAMAGE_FX, DANGER, RESOURCES, SCORE, SLINGSHOT } from './constants'
 import { timeDilation } from './physics'
 import type { Planet } from './planets'
+import type { DamageSource, DeathCause } from './types'
 
 /**
  * Clocks and score of the current run. Mutated in place every frame (never through React or
@@ -22,6 +23,32 @@ export interface RunState {
   approaching: boolean
   approachMinR: number
   closePassCooldown: number
+
+  fuel: number
+  oxygen: number
+  hull: number
+  /** Chrono shards collected this run. */
+  shards: number
+  /** Tidal stress 0..1 and disk heating 0..1 at the ship this frame. */
+  tidalStress: number
+  heat: number
+  /** What hurt the hull last (decides how a hull failure reads). */
+  lastDamage: DamageSource
+  /** Ship seconds since the hull last took damage (drives self-repair). */
+  sinceDamage: number
+  /** Grace time left after a collision. */
+  hitCooldown: number
+  /** Decaying camera shake (units) and red screen flash (0..1) from damage. */
+  shake: number
+  flash: number
+  /** Closest approach to the hole this run. */
+  minR: number
+
+  /** Bumped on every new run (cameras use it to restart their intro). */
+  epoch: number
+  deathCause: DeathCause | null
+  /** Seconds since death (drives the death sequence). */
+  deathTimer: number
 }
 
 export const run: RunState = {
@@ -34,9 +61,24 @@ export const run: RunState = {
   approaching: false,
   approachMinR: Infinity,
   closePassCooldown: 0,
+  fuel: RESOURCES.FUEL_MAX,
+  oxygen: RESOURCES.OXYGEN_MAX,
+  hull: RESOURCES.HULL_MAX,
+  shards: 0,
+  tidalStress: 0,
+  heat: 0,
+  lastDamage: 'impact',
+  sinceDamage: 0,
+  hitCooldown: 0,
+  shake: 0,
+  flash: 0,
+  minR: Infinity,
+  epoch: 0,
+  deathCause: null,
+  deathTimer: 0,
 }
 
-export type RunEventKind = 'slingshot' | 'close-pass' | 'lost'
+export type RunEventKind = 'slingshot' | 'close-pass' | 'fuel' | 'oxygen' | 'shard' | 'impact'
 
 export interface RunEvent {
   kind: RunEventKind
@@ -48,7 +90,7 @@ export interface RunEvent {
 type RunListener = (e: RunEvent) => void
 const listeners = new Set<RunListener>()
 
-/** Subscribes to notable run events (bonuses, loss). Returns an unsubscribe function. */
+/** Subscribes to notable run events (bonuses, pickups, impacts). Returns an unsubscribe function. */
 export function onRunEvent(fn: RunListener): () => void {
   listeners.add(fn)
   return () => {
@@ -60,7 +102,7 @@ export function emitRunEvent(e: RunEvent): void {
   for (const fn of listeners) fn(e)
 }
 
-/** Starts a fresh run: clocks, score and bonus tracking back to zero (world time keeps flowing). */
+/** Starts a fresh run: clocks, score, resources and bonus tracking reset (world time keeps flowing). */
 export function resetRun(planets: readonly Planet[]): void {
   run.shipTime = 0
   run.universeTime = 0
@@ -70,11 +112,44 @@ export function resetRun(planets: readonly Planet[]): void {
   run.approaching = false
   run.approachMinR = Infinity
   run.closePassCooldown = 0
+  run.fuel = RESOURCES.FUEL_MAX
+  run.oxygen = RESOURCES.OXYGEN_MAX
+  run.hull = RESOURCES.HULL_MAX
+  run.shards = 0
+  run.tidalStress = 0
+  run.heat = 0
+  run.lastDamage = 'impact'
+  run.sinceDamage = 0
+  run.hitCooldown = 0
+  run.shake = 0
+  run.flash = 0
+  run.minR = Infinity
+  run.deathCause = null
+  run.deathTimer = 0
   for (const p of planets) {
     p.inSoi = false
     p.assist = 0
     p.passVoid = false
   }
+}
+
+/**
+ * Takes `amount` hull points from `source`. Every hit flashes the screen; `impulse` hits
+ * (collisions) also kick the camera.
+ */
+export function damageHull(amount: number, source: DamageSource, impulse: boolean): void {
+  if (amount <= 0) return
+  run.hull = Math.max(0, run.hull - amount)
+  run.lastDamage = source
+  run.sinceDamage = 0
+  run.flash = Math.min(DAMAGE_FX.MAX_FLASH, run.flash + amount * DAMAGE_FX.FLASH_PER_DAMAGE)
+  if (impulse) run.shake = Math.min(DAMAGE_FX.MAX_SHAKE, run.shake + amount * DAMAGE_FX.SHAKE_PER_DAMAGE)
+}
+
+/** Fades the damage shake and flash. */
+export function decayDamageFx(dt: number): void {
+  run.shake *= Math.exp(-DAMAGE_FX.SHAKE_DECAY * dt)
+  run.flash *= Math.exp(-DAMAGE_FX.FLASH_DECAY * dt)
 }
 
 /**

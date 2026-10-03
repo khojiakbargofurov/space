@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { DEFAULT_QUALITY, QUALITY_ORDER } from './constants'
-import type { CameraMode, GamePhase, QualityLevel } from './types'
+import type { CameraMode, DeathReport, GamePhase, QualityLevel } from './types'
 
 interface GameState {
   phase: GamePhase
@@ -8,6 +8,8 @@ interface GameState {
   showFps: boolean
   showHelp: boolean
   cameraMode: CameraMode
+  /** Report of the run that just ended (shown in the 'dead' phase). */
+  death: DeathReport | null
 
   setPhase: (phase: GamePhase) => void
   setQuality: (quality: QualityLevel) => void
@@ -15,6 +17,10 @@ interface GameState {
   toggleFps: () => void
   toggleHelp: () => void
   toggleCameraMode: () => void
+  /** Ends the run: enters the 'dead' phase with its report. */
+  endRun: (report: DeathReport) => void
+  /** Starts a fresh run in `phase` and clears the last report. */
+  beginRun: (phase: GamePhase) => void
 }
 
 /**
@@ -27,6 +33,7 @@ export const useGameStore = create<GameState>()((set) => ({
   showFps: true,
   showHelp: true,
   cameraMode: 'chase',
+  death: null,
 
   setPhase: (phase) => set({ phase }),
   setQuality: (quality) => set({ quality }),
@@ -35,4 +42,6 @@ export const useGameStore = create<GameState>()((set) => ({
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),
   toggleHelp: () => set((s) => ({ showHelp: !s.showHelp })),
   toggleCameraMode: () => set((s) => ({ cameraMode: s.cameraMode === 'chase' ? 'cockpit' : 'chase' })),
+  endRun: (report) => set({ phase: 'dead', death: report }),
+  beginRun: (phase) => set({ phase, death: null }),
 }))

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { PICKUP_KINDS } from '../game/pickups'
 import { planets } from '../game/planets'
 import { useGameStore } from '../game/store'
 import { type HudElements, hudDisplay } from './hudDisplay'
@@ -13,9 +14,17 @@ function all(root: HTMLElement, key: string): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(`[data-hud="${key}"]`))
 }
 
+const RESOURCE_ROWS = [
+  ['fuel', 'FUEL'],
+  ['oxygen', 'O₂'],
+  ['hull', 'HULL'],
+] as const
+
+const PICKUP_LABELS = { fuel: 'FUEL', oxygen: 'O₂', shard: 'SHARD' } as const
+
 /**
- * Flight HUD: time dilation gauge with the ship and universe clocks, score, flight data, warnings,
- * bonus toasts, planet markers and the prograde marker. Static markup only; the values are written
+ * Flight HUD: time dilation gauge with the ship and universe clocks, score and shards, flight data,
+ * resource gauges, warnings, damage flash, toasts, planet / nearest-pickup markers and the prograde marker. Static markup only; the values are written
  * by the in-canvas HudUpdater through `hudDisplay`.
  */
 export function Hud() {
@@ -34,21 +43,29 @@ export function Hud() {
       debt: one(root, 'debt'),
       score: one(root, 'score'),
       rate: one(root, 'rate'),
+      shards: one(root, 'shards'),
       speed: one(root, 'speed'),
       radial: one(root, 'radial'),
       distance: one(root, 'distance'),
       gravity: one(root, 'gravity'),
+      tide: one(root, 'tide'),
       engine: one(root, 'engine'),
       peak: one(root, 'peak'),
+      resources: all(root, 'resource'),
+      resourceBars: all(root, 'resource-bar'),
+      resourceValues: all(root, 'resource-value'),
       warning: one(root, 'warning'),
       warningText: one(root, 'warning-text'),
       dangerBar: one(root, 'danger-bar'),
+      hit: one(root, 'hit'),
       toastBox: one(root, 'toasts'),
       toasts: all(root, 'toast'),
       markers: all(root, 'marker'),
       markerBoxes: all(root, 'marker-box'),
       markerDistances: all(root, 'marker-distance'),
       prograde: one(root, 'prograde'),
+      pickupMarkers: all(root, 'pickup-marker'),
+      pickupDistances: all(root, 'pickup-distance'),
     }
     hudDisplay.el = elements
     return () => {
@@ -59,6 +76,7 @@ export function Hud() {
   if (!flying) return null
   return (
     <div ref={ref} className="hud">
+      <div className="hud-hit" data-hud="hit" />
       <div className="hud-markers">
         {planets.map((p) => (
           <div key={p.name} className="hud-marker" data-hud="marker">
@@ -67,6 +85,15 @@ export function Hud() {
             <div className="hud-marker-label">
               <span className="hud-marker-name">{p.name}</span>
               <span data-hud="marker-distance" />
+            </div>
+          </div>
+        ))}
+        {PICKUP_KINDS.map((k) => (
+          <div key={k} className="hud-pickup hidden" data-hud="pickup-marker" data-kind={k}>
+            <div className="hud-pickup-diamond" />
+            <div className="hud-marker-arrow" />
+            <div className="hud-pickup-label">
+              {PICKUP_LABELS[k]} <span data-hud="pickup-distance" />
             </div>
           </div>
         ))}
@@ -98,6 +125,21 @@ export function Hud() {
         <div className="hud-label">SCORE</div>
         <div className="hud-score-value" data-hud="score">0</div>
         <div className="hud-score-rate" data-hud="rate">+0/s</div>
+        <div className="hud-shards">
+          <span className="hud-shard-icon">◆</span> <span data-hud="shards">0</span>
+        </div>
+      </div>
+
+      <div className="hud-resources">
+        {RESOURCE_ROWS.map(([key, label]) => (
+          <div key={key} className="hud-resource" data-hud="resource" data-kind={key}>
+            <span className="hud-label">{label}</span>
+            <div className="hud-resource-bar">
+              <div className="hud-resource-fill" data-hud="resource-bar" />
+            </div>
+            <span className="hud-resource-value" data-hud="resource-value">100</span>
+          </div>
+        ))}
       </div>
 
       <div className="hud-flight">
@@ -105,6 +147,7 @@ export function Hud() {
         <div className="hud-row"><span className="hud-label">V-RAD</span><span data-hud="radial" /></div>
         <div className="hud-row"><span className="hud-label">DIST</span><span data-hud="distance" /></div>
         <div className="hud-row"><span className="hud-label">GRAV</span><span data-hud="gravity" /></div>
+        <div className="hud-row"><span className="hud-label">TIDE</span><span data-hud="tide" /></div>
         <div className="hud-row"><span className="hud-label">ENG</span><span data-hud="engine" /></div>
         <div className="hud-row"><span className="hud-label">PEAK</span><span data-hud="peak" /></div>
       </div>

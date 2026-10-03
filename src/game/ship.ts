@@ -28,6 +28,16 @@ export interface ShipState {
   gravity: Vector3
   /** True if the hull touched a planet surface this frame. */
   contact: boolean
+  /** Inward impact speed of this frame's surface contact (0 without contact). */
+  impact: number
+  /** Length factor of the model along `stretchAxis` (tidal stretching / spaghettification); 1 = none. */
+  stretch: number
+  /** World-space unit axis of the stretch (radial, away from the hole). */
+  stretchAxis: Vector3
+  /** 0..1 power to the ship's lights and engine glow (fades out when life support fails). */
+  power: number
+  /** The ship is gone (destroyed, or fell through the horizon). */
+  hidden: boolean
 }
 
 export function createShipState(): ShipState {
@@ -43,6 +53,11 @@ export function createShipState(): ShipState {
     thrust: new Vector3(),
     gravity: new Vector3(),
     contact: false,
+    impact: 0,
+    stretch: 1,
+    stretchAxis: new Vector3(0, 0, 1),
+    power: 1,
+    hidden: false,
   }
 }
 
@@ -81,6 +96,11 @@ export function resetShip(s: ShipState): void {
   s.thrust.set(0, 0, 0)
   s.gravity.set(0, 0, 0)
   s.contact = false
+  s.impact = 0
+  s.stretch = 1
+  s.stretchAxis.set(0, 0, 1)
+  s.power = 1
+  s.hidden = false
 }
 
 resetShip(ship)
@@ -146,6 +166,8 @@ export function stepShip(
     }
   }
 
-  s.contact = integrateFlight(s.position, s.velocity, s.thrust, dt, planets, timeScale, s.gravity)
+  const impact = integrateFlight(s.position, s.velocity, s.thrust, dt, planets, timeScale, s.gravity)
+  s.contact = impact >= 0
+  s.impact = impact > 0 ? impact : 0
   s.velocity.clampLength(0, SHIP.MAX_SPEED)
 }

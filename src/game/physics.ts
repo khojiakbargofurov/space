@@ -1,5 +1,5 @@
 import { Vector3 } from 'three'
-import { BLACK_HOLE, DANGER, DILATION, GRAVITY, PLANETS, SHIP } from './constants'
+import { BLACK_HOLE, DANGER, DILATION, DISK, DISK_HEAT, GRAVITY, PLANETS, SHIP, TIDAL } from './constants'
 import type { Planet } from './planets'
 
 const RS = BLACK_HOLE.SCHWARZSCHILD_RADIUS
@@ -54,7 +54,8 @@ function maxSubstep(pos: Vector3, planets: readonly Planet[]): number {
  * `planet.assist` (the slingshot gain). Planet surfaces are solid: the ship is pushed out and bounces,
  * which voids the current slingshot pass (resting on a surface would otherwise "gain" speed forever).
  * `timeScale` converts planet velocities (per universe second) to per ship second.
- * Writes the last gravitational acceleration into `gravityOut`. Returns true if a surface was touched.
+ * Writes the last gravitational acceleration into `gravityOut`. Returns the fastest inward impact
+ * speed against a surface this step (0 for a resting touch), or -1 if no surface was touched.
  */
 export function integrateFlight(
   pos: Vector3,
@@ -64,10 +65,10 @@ export function integrateFlight(
   planets: readonly Planet[],
   timeScale: number,
   gravityOut: Vector3,
-): boolean {
+): number {
   const n = Math.min(GRAVITY.MAX_SUBSTEPS, Math.max(1, Math.ceil(dt / maxSubstep(pos, planets))))
   const h = dt / n
-  let touched = false
+  let impact = -1
 
   for (let i = 0; i < n; i++) {
     gravityVector(pos, gravityOut)
@@ -97,10 +98,10 @@ export function integrateFlight(
       const vn = _a.dot(_d)
       if (vn < 0) vel.addScaledVector(_d, -vn * (1 + SHIP.BOUNCE_RESTITUTION))
       p.passVoid = true
-      touched = true
+      impact = Math.max(impact, vn < 0 ? -vn : 0)
     }
   }
-  return touched
+  return impact
 }
 
 /**
@@ -123,4 +124,34 @@ export function dangerLevel(r: number): number {
 
 export function isInsideHorizon(r: number): boolean {
   return r <= RS
+}
+
+const TIDAL_K = 2 * BLACK_HOLE.MASS_GM * TIDAL.SHIP_LENGTH
+
+/** Tidal acceleration difference between the ends of the ship at distance r: 2·GM·L / r³. */
+export function tidalAccel(r: number): number {
+  const rr = Math.max(r, MIN_R)
+  return TIDAL_K / (rr * rr * rr)
+}
+
+const TIDAL_ONSET = tidalAccel(TIDAL.ONSET_RS * RS)
+const TIDAL_LETHAL = tidalAccel(LETHAL_R)
+
+/** 0 outside TIDAL.ONSET_RS, 1 at the lethal radius (spaghettification), linear in tidal acceleration. */
+export function tidalStress(r: number): number {
+  const t = (tidalAccel(r) - TIDAL_ONSET) / (TIDAL_LETHAL - TIDAL_ONSET)
+  return t <= 0 ? 0 : t >= 1 ? 1 : t
+}
+
+const DISK_IN = DISK.INNER_RS * RS
+const DISK_OUT = DISK.OUTER_RS * RS
+
+/** 0..1 heating from the accretion disk at `pos`: inside its slab, hottest in the mid-plane at the inner edge. */
+export function diskHeat(pos: Vector3): number {
+  const h = Math.abs(pos.y) / DISK_HEAT.HALF_THICKNESS
+  if (h >= 1) return 0
+  const r = Math.hypot(pos.x, pos.z)
+  if (r < DISK_IN || r > DISK_OUT) return 0
+  const edge = Math.min(1, (DISK_OUT - r) / (DISK_OUT * DISK_HEAT.EDGE_FADE))
+  return (1 - h * h) * Math.pow(DISK_IN / r, DISK_HEAT.FALLOFF) * edge
 }

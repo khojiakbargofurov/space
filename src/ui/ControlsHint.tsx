@@ -24,13 +24,18 @@ const FLIGHT_KEYS: [string, string][] = [
   ['H', 'hide help'],
 ]
 
+const DEAD_KEYS: [string, string][] = [
+  ['R', 'new run'],
+  ['Enter', 'orbit view'],
+]
+
 /** Key reference overlay (H toggles). The full menus arrive in stage 8. */
 export function ControlsHint() {
-  const flying = useGameStore((s) => s.phase === 'playing')
+  const phase = useGameStore((s) => s.phase)
   const show = useGameStore((s) => s.showHelp)
   if (!show) return null
 
-  const rows = flying ? FLIGHT_KEYS : MENU_KEYS
+  const rows = phase === 'playing' ? FLIGHT_KEYS : phase === 'dead' ? DEAD_KEYS : MENU_KEYS
   return (
     <div className="controls-hint">
       {rows.map(([key, action]) => (

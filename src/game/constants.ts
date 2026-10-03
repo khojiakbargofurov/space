@@ -43,10 +43,178 @@ export const DANGER = {
   LETHAL_RADIUS_RS: 1.05,
 } as const
 
-/** Resource drain rates, per second of SHIP time (used from stage 5). */
+/** Ship consumables and hull integrity. */
+export const RESOURCES = {
+  FUEL_MAX: 100,
+  OXYGEN_MAX: 100,
+  HULL_MAX: 100,
+  /** Below this fraction of the max a LOW warning shows. */
+  LOW_FRACTION: 0.2,
+  /** Below this fraction the warning turns critical. */
+  CRITICAL_FRACTION: 0.1,
+} as const
+
+/** Resource drain rates, per second of SHIP time. */
 export const DRAIN = {
-  FUEL_PER_THRUST_SEC: 2.5,
+  /** Fuel per second at full main throttle without boost. */
+  FUEL_PER_THRUST_SEC: 1.2,
+  /** Boost multiplies main-engine fuel flow by this (more than its thrust gain: boosting is wasteful). */
+  BOOST_FUEL_MULTIPLIER: 3.2,
+  /** Fuel per second per fully open RCS axis (strafe, reverse, brake). */
+  FUEL_PER_RCS_SEC: 0.35,
   OXYGEN_PER_SEC: 0.4,
+} as const
+
+/** Hull damage rules shared by every hazard. */
+export const HULL = {
+  /** Seconds without damage before the hull starts repairing itself. */
+  REGEN_DELAY: 5,
+  REGEN_PER_SEC: 0.6,
+  /** Seconds of grace after a collision so one contact can't hit every frame. */
+  HIT_COOLDOWN: 0.4,
+  /** Planet contact: no damage below this impact speed, then DAMAGE_PER_SPEED per extra u/s. */
+  SAFE_IMPACT_SPEED: 6,
+  PLANET_DAMAGE_PER_SPEED: 1.2,
+} as const
+
+/**
+ * Tidal stretching across the hull: Δa = 2·GM·L / r³. Stress is 0 at ONSET_RS and reaches 1 at
+ * DANGER.LETHAL_RADIUS_RS, where the ship is spaghettified. In between the hull takes DAMAGE_PER_SEC · stress².
+ */
+export const TIDAL = {
+  /** Ship length used for the tidal difference (units). */
+  SHIP_LENGTH: 4.3,
+  ONSET_RS: 2.4,
+  DAMAGE_PER_SEC: 60,
+  /** Extra length of the ship model along the radial axis at stress 1 (in flight). */
+  VISUAL_STRETCH: 0.35,
+  /** Camera shake amplitude (units) at stress 1. */
+  SHAKE: 0.12,
+} as const
+
+/** Flying through the accretion disk: the hull heats up inside its half-thickness, hottest at the inner edge. */
+export const DISK_HEAT = {
+  HALF_THICKNESS: 3.5,
+  /** Damage per second in the mid-plane at the inner edge. */
+  DAMAGE_PER_SEC: 45,
+  /** Heat falls off as (r_in / r)^FALLOFF. */
+  FALLOFF: 1.5,
+  /** Heat fades out over this outer fraction of the disk. */
+  EDGE_FADE: 0.15,
+} as const
+
+/**
+ * Collectibles on circular prograde orbits around the hole (they move along UNIVERSE time, like planets).
+ * Orbit radii in units. Chrono shards live deep in the well and pay POINTS · dilation^SHARD_DILATION_EXP.
+ * Respawn delays are [min, max] universe seconds.
+ */
+export const PICKUPS = {
+  SEED: 2024,
+  fuel: { COUNT: 10, MIN_R: 60, MAX_R: 420, MAX_INCLINATION: 0.35, AMOUNT: 30, POINTS: 50, RADIUS: 3.5, RESPAWN: [25, 45] },
+  oxygen: { COUNT: 8, MIN_R: 60, MAX_R: 420, MAX_INCLINATION: 0.35, AMOUNT: 35, POINTS: 50, RADIUS: 3.5, RESPAWN: [25, 45] },
+  shard: { COUNT: 14, MIN_R: 16, MAX_R: 45, MAX_INCLINATION: 0.6, AMOUNT: 1, POINTS: 300, RADIUS: 3, RESPAWN: [12, 25] },
+  SHARD_DILATION_EXP: 2,
+  /** A respawning pickup waits until its new spot is at least this far from the ship. */
+  SPAWN_CLEARANCE: 60,
+} as const
+
+/** Pickup look. Colors are sRGB hex; glow values are HDR multipliers (feed the bloom). */
+export const PICKUP_LOOK = {
+  fuel: { COLOR: '#ffaa3d', GLOW: 5, SIZE: 1.3 },
+  oxygen: { COLOR: '#5fe0ff', GLOW: 5, SIZE: 1.2 },
+  shard: { COLOR: '#c48cff', GLOW: 8, SIZE: 1.1 },
+  /** Self-rotation, rad per real second. */
+  SPIN: 1.3,
+  /** Distant-glow sprite: world size, pixel clamp. Keeps far pickups visible as dots. */
+  HALO_SIZE: 5,
+  HALO_MIN_PX: 3,
+  HALO_MAX_PX: 64,
+  HALO_INTENSITY: 1.2,
+} as const
+
+/**
+ * Debris belts: rubble on shearing circular orbits. Hitting a rock costs hull
+ * (DAMAGE_BASE + DAMAGE_PER_SPEED per u/s of relative speed above SAFE_SPEED) and shatters it.
+ */
+export const DEBRIS = {
+  SEED: 9917,
+  /** Center radius, radial half-width, rock count and max inclination per belt. */
+  BELTS: [
+    { radius: 75, width: 18, count: 40, inclination: 0.12 },
+    { radius: 215, width: 35, count: 55, inclination: 0.3 },
+  ],
+  /** Rock collision radius range (units). */
+  SIZE: [1.2, 4.2],
+  /** Self-rotation, rad per universe second. */
+  SPIN: [0.2, 1.4],
+  /** Rocks keep at least this many planet radii away from planet orbits. */
+  PLANET_CLEARANCE: 2,
+  SAFE_SPEED: 4,
+  DAMAGE_BASE: 6,
+  DAMAGE_PER_SPEED: 0.9,
+  /** Fraction of the inward relative speed bounced back. */
+  BOUNCE: 0.4,
+  RESPAWN: [15, 30],
+  /** A respawning rock waits until its new spot is at least this far from the ship. */
+  SPAWN_CLEARANCE: 60,
+} as const
+
+export const DEBRIS_LOOK = {
+  COLOR: '#776c62',
+  ROUGHNESS: 0.95,
+  METALNESS: 0.05,
+  /** Surface lumpiness (fraction of radius). */
+  JITTER: 0.32,
+  /** Random squash per axis (min scale factor). */
+  MIN_ASPECT: 0.65,
+} as const
+
+/** One-shot particle bursts (explosions, impact sparks, pickup sparkles). Kind 0 = fire, 1 = sparkle. */
+export const BURST = {
+  /** Pool size as a share of the quality preset's particle budget (at least MIN_CAPACITY). */
+  CAPACITY_SHARE: 0.6,
+  MIN_CAPACITY: 128,
+  /** Bursts inherit this fraction of the source velocity. */
+  INHERIT_VELOCITY: 0.3,
+  EXPLOSION: { COUNT: 500, SPEED: 20, LIFE: 1.5, SIZE: 0.3, KIND: 0 },
+  IMPACT: { COUNT: 40, SPEED: 9, LIFE: 0.8, SIZE: 0.35, KIND: 0 },
+  PICKUP: { COUNT: 36, SPEED: 6, LIFE: 0.7, SIZE: 0.3, KIND: 1 },
+  FIRE_HOT: '#fff1c9',
+  FIRE_COOL: '#ff4a12',
+  FIRE_INTENSITY: 3,
+  SPARKLE_HOT: '#ffffff',
+  SPARKLE_COOL: '#7f6bff',
+  SPARKLE_INTENSITY: 2.4,
+  GROWTH: 1.8,
+  MAX_POINT_PX: 24,
+} as const
+
+/** Screen feedback on damage. */
+export const DAMAGE_FX = {
+  /** Camera shake (units) per hull point of instant damage, its cap and decay rate (1/s). */
+  SHAKE_PER_DAMAGE: 0.025,
+  MAX_SHAKE: 0.6,
+  SHAKE_DECAY: 4,
+  /** Red flash opacity per hull point, cap and decay rate (1/s). */
+  FLASH_PER_DAMAGE: 0.05,
+  MAX_FLASH: 0.6,
+  FLASH_DECAY: 3,
+} as const
+
+/** Death sequences and the death screen. */
+export const DEATH = {
+  /** Spaghettification: seconds to fall from the death point to the horizon, final length factor. */
+  SPAGHETTI_SEC: 2.6,
+  SPAGHETTI_STRETCH: 6,
+  /** Life support failure: seconds for the ship's lights to die, tumble rate (rad/s). */
+  POWER_FADE_SEC: 1.6,
+  TUMBLE_RATE: 0.35,
+  /** Camera turn-to-follow rate (1/s) while it watches the wreck. */
+  CAMERA_FOLLOW: 3,
+  /** The watching camera backs out to at least this radius (units of rs) so it never sits inside the horizon. */
+  CAMERA_MIN_RS: 2.5,
+  /** Seconds before the death screen fades in. */
+  SCREEN_DELAY: 1.8,
 } as const
 
 export const CAMERA = {
@@ -449,6 +617,8 @@ export const HUD = {
   /** Hide the prograde marker below this speed. */
   PROGRADE_MIN_SPEED: 0.5,
   TOAST_SEC: 3.2,
+  /** Nearest-pickup markers only show within this distance (units). */
+  PICKUP_MARKER_RANGE: 1200,
 } as const
 
 export const DEBUG = {
@@ -463,14 +633,14 @@ export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high']
 export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
   low: {
     dpr: 1, msaa: 0, starCount: 3000, lensingSteps: 48, bloom: false, particles: 200,
-    diskOctaves: 3, nebulaResolution: 256, planetSegments: 32, planetOctaves: 3,
+    diskOctaves: 3, nebulaResolution: 256, planetSegments: 32, planetOctaves: 3, rockDetail: 1,
   },
   medium: {
     dpr: 1.5, msaa: 4, starCount: 7000, lensingSteps: 96, bloom: true, particles: 600,
-    diskOctaves: 4, nebulaResolution: 512, planetSegments: 64, planetOctaves: 4,
+    diskOctaves: 4, nebulaResolution: 512, planetSegments: 64, planetOctaves: 4, rockDetail: 1,
   },
   high: {
     dpr: 2, msaa: 4, starCount: 15000, lensingSteps: 160, bloom: true, particles: 1500,
-    diskOctaves: 6, nebulaResolution: 768, planetSegments: 96, planetOctaves: 5,
+    diskOctaves: 6, nebulaResolution: 768, planetSegments: 96, planetOctaves: 5, rockDetail: 2,
   },
 }

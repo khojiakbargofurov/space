@@ -21,6 +21,8 @@ export interface QualityPreset {
   planetSegments: number
   /** fbm octaves for planet surfaces. */
   planetOctaves: number
+  /** Icosahedron subdivision of debris rocks. */
+  rockDetail: number
 }
 
 export type PlanetKind = 'rocky' | 'gas' | 'ice' | 'lava'
@@ -43,4 +45,24 @@ export interface FlightInput {
   roll: number
   boost: boolean
   brake: boolean
+}
+
+export type PickupKind = 'fuel' | 'oxygen' | 'shard'
+
+/** What ended a run. */
+export type DeathCause = 'spaghettified' | 'incinerated' | 'destroyed' | 'suffocated'
+
+/** Hull damage sources (the last one decides how a hull failure reads). */
+export type DamageSource = 'tidal' | 'heat' | 'impact'
+
+/** Snapshot of a finished run for the death screen. */
+export interface DeathReport {
+  cause: DeathCause
+  score: number
+  shards: number
+  shipTime: number
+  universeTime: number
+  peakDilation: number
+  /** Closest approach to the hole, in units of rs. */
+  deepestRs: number
 }

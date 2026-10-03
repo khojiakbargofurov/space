@@ -1,13 +1,17 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { SHIP } from '../game/constants'
+import { killShip } from '../game/death'
 import { attachFlightInput, readFlightInput } from '../game/input'
-import { dangerLevel } from '../game/physics'
 import { planets } from '../game/planets'
-import { emitRunEvent, resetRun, run, updateBonuses } from '../game/run'
-import { createFlightInput, resetShip, ship, stepShip } from '../game/ship'
+import { run, updateBonuses } from '../game/run'
+import { createFlightInput, ship, stepShip } from '../game/ship'
+import { updateSurvival } from '../game/survival'
 
-/** Reads pilot input and integrates the ship under thrust and gravity. Mounted only in the 'playing' phase. */
+/**
+ * Reads pilot input, integrates the ship under thrust and gravity, then runs bonuses and survival
+ * (resources, hazards, pickups, death). Mounted only in the 'playing' phase.
+ */
 export function ShipController() {
   const canvas = useThree((s) => s.gl.domElement)
   const input = useMemo(createFlightInput, [])
@@ -27,16 +31,20 @@ export function ShipController() {
 
   // Right after the simulation clock: ship model, cameras, particles and HUD all read the updated state.
   useFrame((_, delta) => {
+    const dt = Math.min(delta, SHIP.MAX_DT)
     readFlightInput(input, delta)
-    stepShip(ship, input, delta, planets, run.dilation)
-    updateBonuses(ship.position, ship.velocity, Math.min(delta, SHIP.MAX_DT), planets)
-
-    // Temporary until death/restart (stage 5): crossing the lethal radius starts a new run at the spawn.
-    if (dangerLevel(ship.position.length()) >= 1) {
-      emitRunEvent({ kind: 'lost', title: 'LOST TO THE HORIZON', detail: 'run restarted', points: 0 })
-      resetShip(ship)
-      resetRun(planets)
+    // Dry tanks: every thruster is dead, only the reaction wheels still turn the ship.
+    if (run.fuel <= 0) {
+      input.thrust = 0
+      input.strafeX = 0
+      input.strafeY = 0
+      input.boost = false
+      input.brake = false
     }
+    stepShip(ship, input, delta, planets, run.dilation)
+    updateBonuses(ship.position, ship.velocity, dt, planets)
+    const cause = updateSurvival(dt, run.dilation)
+    if (cause) killShip(cause)
   }, -3)
 
   return null

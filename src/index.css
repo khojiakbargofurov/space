@@ -96,6 +96,10 @@ canvas {
   --hud-cyan: #8fd8ff;
   --hud-amber: #ffb35c;
   --hud-red: #ff4a3d;
+  --hud-fuel: #ffaa3d;
+  --hud-oxygen: #5fe0ff;
+  --hud-shard: #c48cff;
+  --hud-hull: #d6dde4;
   --heat: 0;
   --hud-accent: color-mix(in oklab, var(--hud-cyan), var(--hud-amber) calc(var(--heat) * 100%));
   position: fixed;
@@ -274,8 +278,20 @@ canvas {
   color: var(--hud-amber);
 }
 
-.hud-toast[data-kind='lost'] .hud-toast-title {
+.hud-toast[data-kind='impact'] .hud-toast-title {
   color: var(--hud-red);
+}
+
+.hud-toast[data-kind='fuel'] .hud-toast-title {
+  color: var(--hud-fuel);
+}
+
+.hud-toast[data-kind='oxygen'] .hud-toast-title {
+  color: var(--hud-oxygen);
+}
+
+.hud-toast[data-kind='shard'] .hud-toast-title {
+  color: var(--hud-shard);
 }
 
 .hud-toast-points {
@@ -407,4 +423,221 @@ canvas {
     linear-gradient(#9dffb0, #9dffb0) left 0 bottom 3px / 6px 1.5px,
     linear-gradient(#9dffb0, #9dffb0) right 0 bottom 3px / 6px 1.5px;
   background-repeat: no-repeat;
+}
+
+.hud-shards {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #efe4ff;
+}
+
+.hud-shard-icon {
+  color: var(--hud-shard);
+  text-shadow: 0 0 8px var(--hud-shard);
+}
+
+/* ---------- resources ---------- */
+
+.hud-resources {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(4, 10, 18, 0.45);
+}
+
+.hud-resource {
+  --c: var(--hud-hull);
+  display: grid;
+  grid-template-columns: 40px 200px 32px;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-resource[data-kind='fuel'] {
+  --c: var(--hud-fuel);
+}
+
+.hud-resource[data-kind='oxygen'] {
+  --c: var(--hud-oxygen);
+}
+
+.hud-resource-bar {
+  height: 5px;
+  background: color-mix(in srgb, var(--c) 15%, transparent);
+  overflow: hidden;
+}
+
+.hud-resource-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--c);
+  box-shadow: 0 0 6px var(--c);
+  transform-origin: left center;
+  transition: transform 0.12s linear;
+}
+
+.hud-resource-value {
+  text-align: right;
+  color: var(--c);
+}
+
+.hud-resource[data-status='low'] {
+  --c: var(--hud-amber);
+}
+
+.hud-resource[data-status='critical'] {
+  --c: var(--hud-red);
+  animation: hud-blink 0.8s steps(2, jump-none) infinite;
+}
+
+/* ---------- damage flash ---------- */
+
+.hud-hit {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(255, 40, 20, 0.55) 100%);
+}
+
+/* ---------- nearest-pickup markers ---------- */
+
+.hud-pickup {
+  --c: var(--hud-hull);
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.hud-pickup[data-kind='fuel'] {
+  --c: var(--hud-fuel);
+}
+
+.hud-pickup[data-kind='oxygen'] {
+  --c: var(--hud-oxygen);
+}
+
+.hud-pickup[data-kind='shard'] {
+  --c: var(--hud-shard);
+}
+
+.hud-pickup.hidden {
+  display: none;
+}
+
+.hud-pickup-diamond {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1.5px solid var(--c);
+}
+
+.hud-pickup-label {
+  position: absolute;
+  left: 9px;
+  top: -6px;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--c);
+}
+
+.hud-pickup .hud-marker-arrow {
+  border-left-color: var(--c);
+}
+
+.hud-pickup.off .hud-pickup-diamond {
+  display: none;
+}
+
+.hud-pickup.off .hud-marker-arrow {
+  display: block;
+}
+
+.hud-pickup.off .hud-pickup-label {
+  left: -30px;
+  top: 10px;
+  width: 60px;
+  text-align: center;
+  opacity: 0.75;
+}
+
+/* ---------- death screen ---------- */
+
+.death {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #dbe8f2;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.8) 100%);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  user-select: none;
+  z-index: 8;
+  opacity: 0;
+  animation: death-in 1.2s ease-out forwards;
+}
+
+@keyframes death-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.death-title {
+  font-size: 34px;
+  letter-spacing: 0.3em;
+  color: #ff6a4d;
+  text-shadow: 0 0 22px rgba(255, 90, 50, 0.6);
+}
+
+.death[data-cause='suffocated'] .death-title {
+  color: #8fd8ff;
+  text-shadow: 0 0 22px rgba(143, 216, 255, 0.5);
+}
+
+.death[data-cause='spaghettified'] .death-title {
+  color: #ffb35c;
+  text-shadow: 0 0 22px rgba(255, 179, 92, 0.55);
+}
+
+.death-line {
+  color: #9fb2c4;
+  margin-bottom: 10px;
+}
+
+.death-stats {
+  display: grid;
+  gap: 3px;
+  min-width: 300px;
+  padding: 10px 14px;
+  background: rgba(4, 10, 18, 0.55);
+  border-left: 2px solid #ffb35c;
+}
+
+.death-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.death-keys {
+  display: flex;
+  gap: 22px;
+  margin-top: 12px;
+  color: #b8b8b8;
+}
+
+.death-keys kbd {
+  font: inherit;
+  color: #ffffff;
 }
