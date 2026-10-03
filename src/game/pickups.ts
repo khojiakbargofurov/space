@@ -17,14 +17,14 @@ export interface Pickup {
 
 export const PICKUP_KINDS: readonly PickupKind[] = ['fuel', 'oxygen', 'shard']
 
-const rng = createRng(PICKUPS.SEED)
+let rng = createRng(1)
 
 function rollOrbit(p: Pickup): void {
   const cfg = PICKUPS[p.kind]
   setOrbit(p.orbit, rng, cfg.MIN_R + (cfg.MAX_R - cfg.MIN_R) * rng(), cfg.MAX_INCLINATION)
 }
 
-/** Every pickup, grouped by kind in PICKUP_KINDS order. */
+/** Every pickup of the current sector, grouped by kind in PICKUP_KINDS order. */
 export const pickups: Pickup[] = []
 /** First index and count of each kind inside `pickups`. */
 export const pickupRange: Record<PickupKind, { start: number; count: number }> = {
@@ -33,22 +33,23 @@ export const pickupRange: Record<PickupKind, { start: number; count: number }> =
   shard: { start: 0, count: 0 },
 }
 
-for (const kind of PICKUP_KINDS) {
-  pickupRange[kind].start = pickups.length
-  pickupRange[kind].count = PICKUPS[kind].COUNT
-  for (let i = 0; i < PICKUPS[kind].COUNT; i++) {
-    const p: Pickup = { kind, orbit: createOrbiter(), active: true, respawnAt: 0, spinPhase: rng() * Math.PI * 2 }
-    rollOrbit(p)
-    pickups.push(p)
-  }
-}
-
-/** Fresh spread of pickups for a new run. */
-export function resetPickups(worldTime: number): void {
-  for (const p of pickups) {
-    rollOrbit(p)
-    p.active = true
-    updateOrbiter(p.orbit, worldTime)
+/**
+ * New pickups for a sector: PICKUPS[kind].COUNT scaled by `density[kind]` (at least one of each),
+ * deterministic per seed.
+ */
+export function generatePickups(density: Record<PickupKind, number>, seed: number, worldTime: number): void {
+  rng = createRng(seed)
+  pickups.length = 0
+  for (const kind of PICKUP_KINDS) {
+    const count = Math.max(1, Math.round(PICKUPS[kind].COUNT * density[kind]))
+    pickupRange[kind].start = pickups.length
+    pickupRange[kind].count = count
+    for (let i = 0; i < count; i++) {
+      const p: Pickup = { kind, orbit: createOrbiter(), active: true, respawnAt: 0, spinPhase: rng() * Math.PI * 2 }
+      rollOrbit(p)
+      updateOrbiter(p.orbit, worldTime)
+      pickups.push(p)
+    }
   }
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, type PerspectiveCamera, Quaternion, Vector3 } from 'three'
-import { BLACK_HOLE, CAMERA, CHASE_CAM, COCKPIT_CAM, DEATH, TIDAL } from '../game/constants'
+import { BLACK_HOLE, CAMERA, CHASE_CAM, COCKPIT_CAM, DEATH, TIDAL, WARP } from '../game/constants'
 import { chaseZoom } from '../game/input'
 import { run } from '../game/run'
 import { ship } from '../game/ship'
 import { useGameStore } from '../game/store'
+import { warp } from '../game/warp'
 
 function approach(rate: number, dt: number): number {
   return 1 - Math.exp(-rate * dt)
@@ -123,6 +124,7 @@ export function ShipCamera() {
       shake = CHASE_CAM.BOOST_SHAKE * effort
     }
 
+    fov += WARP.FOV_KICK * warp.tunnel
     shake += run.shake + run.tidalStress * TIDAL.SHAKE
     if (shake > 0) addShake(st.offset, st.time, st.look, shake, st.pos)
 

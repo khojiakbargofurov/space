@@ -2,6 +2,8 @@ import { useGameStore } from '../game/store'
 
 const MENU_KEYS: [string, string][] = [
   ['Enter', 'launch'],
+  ['U', 'upgrades'],
+  ['N', 'new run'],
   ['Drag / wheel', 'orbit view'],
   ['G', 'quality'],
   ['F', 'fps'],
@@ -35,8 +37,11 @@ const DEAD_KEYS: [string, string][] = [
 export function ControlsHint() {
   const phase = useGameStore((s) => s.phase)
   const show = useGameStore((s) => s.showHelp)
+  const shopOpen = useGameStore((s) => s.shopOpen)
   if (!show) return null
 
+  // The transit panel and the shop list their own keys.
+  if (phase === 'warp' || phase === 'transit' || shopOpen) return null
   const rows = phase === 'playing' ? FLIGHT_KEYS : phase === 'dead' ? DEAD_KEYS : MENU_KEYS
   return (
     <div className="controls-hint">

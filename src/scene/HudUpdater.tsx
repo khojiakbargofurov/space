@@ -7,20 +7,21 @@ import { PICKUP_KINDS, nearestPickup } from '../game/pickups'
 import { planets } from '../game/planets'
 import { onRunEvent, run } from '../game/run'
 import { ship } from '../game/ship'
+import { shipStats } from '../game/stats'
 import { useGameStore } from '../game/store'
+import { wormhole } from '../game/wormhole'
 import { formatClock, formatDistance, formatDuration, formatPoints } from '../ui/format'
 import { hudDisplay } from '../ui/hudDisplay'
 
 const RS = BLACK_HOLE.SCHWARZSCHILD_RADIUS
-const MAX_THRUST = SHIP.MAIN_THRUST * SHIP.BOOST_MULTIPLIER
-const RESOURCE_MAX = [RESOURCES.FUEL_MAX, RESOURCES.OXYGEN_MAX, RESOURCES.HULL_MAX]
 
 /** Minimum on-screen bracket size (px). */
 const MIN_BOX = 18
-/** Marker slots: planets, then the prograde marker, then one per pickup kind. */
-const PROGRADE = planets.length
-const FIRST_PICKUP = planets.length + 1
-const SLOTS = FIRST_PICKUP + PICKUP_KINDS.length
+/** Marker slots: prograde, wormhole, one per pickup kind, then the planets. */
+const PROGRADE = 0
+const WORMHOLE_SLOT = 1
+const FIRST_PICKUP = 2
+const FIRST_PLANET = FIRST_PICKUP + PICKUP_KINDS.length
 
 type HudState = {
   cam: Vector3
@@ -31,26 +32,26 @@ type HudState = {
 }
 
 /**
- * Writes the HUD from the live simulation. Text refreshes every HUD.INTERVAL; planet, pickup and
- * prograde markers are re-projected every frame (DOM writes are skipped when nothing moved).
- * Mounted only while flying.
+ * Writes the HUD from the live simulation. Text refreshes every HUD.INTERVAL; planet, pickup, wormhole
+ * and prograde markers are re-projected every frame (DOM writes are skipped when nothing moved).
+ * Mounted only while flying, and remounted per sector (the planet count sets the marker slots).
  */
 export function HudUpdater() {
-  const st = useMemo(
-    () => ({
+  const st = useMemo(() => {
+    const slots = FIRST_PLANET + planets.length
+    return {
       timer: HUD.INTERVAL as number,
       nextToast: 0,
       lastFlash: -1,
       cam: new Vector3(),
       ndc: new Vector3(),
       // Last values written per marker, so unchanged ones aren't touched.
-      lastX: new Float32Array(SLOTS).fill(NaN),
-      lastY: new Float32Array(SLOTS).fill(NaN),
+      lastX: new Float32Array(slots).fill(NaN),
+      lastY: new Float32Array(slots).fill(NaN),
       lastBox: new Float32Array(planets.length).fill(NaN),
-      lastOff: new Int8Array(SLOTS).fill(-1),
-    }),
-    [],
-  )
+      lastOff: new Int8Array(slots).fill(-1),
+    }
+  }, [])
 
   // Bonus / pickup / impact toasts: a pool of three, the newest moved to the bottom of the stack.
   useEffect(
@@ -85,7 +86,7 @@ export function HudUpdater() {
     // --- markers (every frame) ---
     for (let i = 0; i < planets.length; i++) {
       const p = planets[i]
-      const onScreen = placeMarker(st, el.markers[i], i, p.position, camera, w, h, true)
+      const onScreen = placeMarker(st, el.markers[i], FIRST_PLANET + i, p.position, camera, w, h, true)
       if (!onScreen) continue
       const box = Math.max(MIN_BOX, Math.round((2.4 * p.radius * focalPx) / -st.cam.z))
       if (box !== st.lastBox[i]) {
@@ -112,6 +113,9 @@ export function HudUpdater() {
       else placeMarker(st, node, slot, p.orbit.position, camera, w, h, true)
     }
 
+    if (wormhole.open) placeMarker(st, el.wormhole, WORMHOLE_SLOT, wormhole.orbit.position, camera, w, h, true)
+    else setOff(st, el.wormhole, WORMHOLE_SLOT, 2)
+
     // Damage flash follows every frame (it decays fast).
     const flash = Math.round(run.flash * 100) / 100
     if (flash !== st.lastFlash) {
@@ -134,15 +138,20 @@ export function HudUpdater() {
     el.universeClock.textContent = formatClock(run.universeTime)
     el.debt.textContent = `+${formatDuration(run.universeTime - run.shipTime)}`
     el.score.textContent = formatPoints(run.score)
-    el.rate.textContent = `+${((d - 1) * SCORE.POINTS_PER_DEBT_SEC).toFixed(0)}/s`
+    el.rate.textContent = `+${((d - 1) * SCORE.POINTS_PER_DEBT_SEC * run.scoreMult).toFixed(0)}/s`
     el.shards.textContent = `${run.shards}`
+    const quota = Math.min(1, run.sectorShards / run.shardQuota)
+    el.quotaBar.style.transform = `scaleX(${quota.toFixed(3)})`
+    el.quota.textContent = wormhole.open ? 'WORMHOLE OPEN' : `◆ ${run.sectorShards} / ${run.shardQuota} TO OPEN WORMHOLE`
+    if (el.sector.dataset.open !== `${wormhole.open}`) el.sector.dataset.open = `${wormhole.open}`
 
     const vr = r > 1e-6 ? ship.position.dot(ship.velocity) / r : 0
     const g = ship.gravity.length()
     el.speed.textContent = `${speed.toFixed(1)} u/s`
     el.radial.textContent = `${vr < 0 ? '▼' : '▲'} ${Math.abs(vr).toFixed(1)} u/s`
     el.distance.textContent = `${(r / RS).toFixed(2)} rs`
-    el.gravity.textContent = `${g.toFixed(1)} u/s² · ${((g / MAX_THRUST) * 100).toFixed(0)}% thr`
+    const maxThrust = SHIP.MAIN_THRUST * shipStats.thrust * SHIP.BOOST_MULTIPLIER
+    el.gravity.textContent = `${g.toFixed(1)} u/s² · ${((g / maxThrust) * 100).toFixed(0)}% thr`
     el.tide.textContent = `${tidalAccel(r).toFixed(1)} u/s² · ${(run.tidalStress * 100).toFixed(0)}%`
     const mode = useGameStore.getState().cameraMode
     el.engine.textContent =
@@ -151,7 +160,7 @@ export function HudUpdater() {
 
     for (let i = 0; i < 3; i++) {
       const level = i === 0 ? run.fuel : i === 1 ? run.oxygen : run.hull
-      const f = level / RESOURCE_MAX[i]
+      const f = level / (i === 0 ? shipStats.fuelMax : i === 1 ? shipStats.oxygenMax : shipStats.hullMax)
       el.resourceBars[i].style.transform = `scaleX(${f.toFixed(4)})`
       el.resourceValues[i].textContent = level.toFixed(0)
       const status = f <= RESOURCES.CRITICAL_FRACTION ? 'critical' : f <= RESOURCES.LOW_FRACTION ? 'low' : ''
@@ -166,12 +175,13 @@ export function HudUpdater() {
       const p = nearestPickup(PICKUP_KINDS[k], ship.position)
       if (p) el.pickupDistances[k].textContent = formatDistance(p.orbit.position.distanceTo(ship.position))
     }
+    if (wormhole.open) el.wormholeDistance.textContent = formatDistance(wormhole.orbit.position.distanceTo(ship.position))
 
     // Warnings, most urgent first.
     const danger = dangerLevel(r)
-    const fuelF = run.fuel / RESOURCES.FUEL_MAX
-    const oxyF = run.oxygen / RESOURCES.OXYGEN_MAX
-    const hullF = run.hull / RESOURCES.HULL_MAX
+    const fuelF = run.fuel / shipStats.fuelMax
+    const oxyF = run.oxygen / shipStats.oxygenMax
+    const hullF = run.hull / shipStats.hullMax
     let warning = ''
     let critical = false
     if (run.tidalStress > 0.5) {
@@ -180,7 +190,7 @@ export function HudUpdater() {
     } else if (run.heat > 0) {
       warning = 'DISK PLASMA · HULL HEATING'
       critical = true
-    } else if (g > MAX_THRUST) {
+    } else if (g > maxThrust) {
       warning = 'GRAVITY EXCEEDS MAX THRUST'
       critical = true
     } else if (oxyF <= RESOURCES.LOW_FRACTION) {

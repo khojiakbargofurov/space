@@ -1,4 +1,4 @@
-import type { QualityLevel, QualityPreset } from './types'
+import type { QualityLevel, QualityPreset, SectorSpec, UpgradeId, UpgradeSpec } from './types'
 
 /**
  * Every tunable number in the game lives here.
@@ -109,7 +109,6 @@ export const DISK_HEAT = {
  * Respawn delays are [min, max] universe seconds.
  */
 export const PICKUPS = {
-  SEED: 2024,
   fuel: { COUNT: 10, MIN_R: 60, MAX_R: 420, MAX_INCLINATION: 0.35, AMOUNT: 30, POINTS: 50, RADIUS: 3.5, RESPAWN: [25, 45] },
   oxygen: { COUNT: 8, MIN_R: 60, MAX_R: 420, MAX_INCLINATION: 0.35, AMOUNT: 35, POINTS: 50, RADIUS: 3.5, RESPAWN: [25, 45] },
   shard: { COUNT: 14, MIN_R: 16, MAX_R: 45, MAX_INCLINATION: 0.6, AMOUNT: 1, POINTS: 300, RADIUS: 3, RESPAWN: [12, 25] },
@@ -137,8 +136,7 @@ export const PICKUP_LOOK = {
  * (DAMAGE_BASE + DAMAGE_PER_SPEED per u/s of relative speed above SAFE_SPEED) and shatters it.
  */
 export const DEBRIS = {
-  SEED: 9917,
-  /** Center radius, radial half-width, rock count and max inclination per belt. */
+  /** Center radius, radial half-width, rock count (scaled by the sector's debris density) and max inclination per belt. */
   BELTS: [
     { radius: 75, width: 18, count: 40, inclination: 0.12 },
     { radius: 215, width: 35, count: 55, inclination: 0.3 },
@@ -269,16 +267,8 @@ export const DISK = {
   BEAMING_EXP: 3,
   /** Temperature falloff exponent: T ~ (r_in / r)^TEMP_FALLOFF. */
   TEMP_FALLOFF: 0.85,
-  /** Multiplies observed temperature before the color ramp. */
-  TEMP_SCALE: 1.0,
-  BRIGHTNESS: 5,
-  /** Face-on optical depth at full density; grows as 1/cos(i) at grazing angles. */
+  /** Face-on optical depth at full density; grows as 1/cos(i) at grazing angles. Colors and brightness are per sector. */
   OPACITY: 0.7,
-  /** Color ramp from cool outer gas to blue-shifted hot gas (sRGB hex). */
-  COLOR_COOL: '#b8320c',
-  COLOR_WARM: '#ff8a2e',
-  COLOR_HOT: '#ffe2b8',
-  COLOR_BLUE: '#b9d4ff',
 } as const
 
 /**
@@ -304,24 +294,18 @@ export const STARFIELD = {
   COLOR_WEIGHTS: [0.08, 0.17, 0.3, 0.22, 0.15, 0.08],
 } as const
 
-/** Shared orientation of the galactic plane (stars + nebula band). Normalized at use. */
-export const GALAXY_BAND_NORMAL = [0.32, 0.88, 0.35] as const
-
-/** Procedural nebula, baked once per quality change into a cube map sampled by the lensing shader. */
+/**
+ * Procedural nebula, baked into a cube map sampled by the lensing shader (re-baked on quality or
+ * sector change). Seed, colors, intensity and the galactic band orientation are per sector.
+ */
 export const NEBULA = {
-  SEED: 4.2,
   /** Base noise frequency on the unit sphere. */
   SCALE: 2.1,
   WARP: 1.4,
-  INTENSITY: 0.22,
   /** Angular thickness of the bright band (dot with band normal). */
   BAND_WIDTH: 0.24,
   BAND_STRENGTH: 0.55,
   DUST_STRENGTH: 0.75,
-  COLOR_A: '#1b3a6b',
-  COLOR_B: '#5b1f6e',
-  COLOR_C: '#a8552a',
-  COLOR_BAND: '#d8c3a5',
 } as const
 
 /** Post-processing (HDR, before tone mapping for bloom). */
@@ -488,8 +472,6 @@ export const EXHAUST = {
  * Each planet has real gravity (GM = surfaceGravity * radius^2), which makes slingshots possible.
  */
 export const PLANETS = {
-  SEED: 7331,
-  COUNT: 5,
   /** First orbit radius and the random spacing between successive orbits. */
   MIN_ORBIT: 170,
   ORBIT_GAP_MIN: 90,
@@ -788,6 +770,185 @@ export const SFX = {
   SPAGHETTI: 0.5,
   POWER_DOWN: 0.45,
   LAUNCH: 0.35,
+  WORMHOLE: 0.4,
+  WARP: 0.8,
+  PURCHASE: 0.3,
+} as const
+
+/**
+ * Sectors: each is a fresh system around the same hole (new planets, belts, pickups and sky).
+ * Collect the sector's chrono shard quota to open a wormhole to the next one. After the hand-made
+ * list, sectors are generated endlessly, each harder (and better paying) than the last.
+ */
+export const SECTORS: { LIST: readonly SectorSpec[] } = {
+  LIST: [
+    {
+      name: 'Threshold',
+      seed: 7331,
+      planets: 4,
+      shardQuota: 3,
+      debris: 0.6,
+      fuel: 1.2,
+      oxygen: 1.2,
+      shards: 1,
+      oxygenDrain: 0.9,
+      scoreMult: 1,
+      nebula: { seed: 4.2, intensity: 0.22, colors: ['#1b3a6b', '#5b1f6e', '#a8552a', '#d8c3a5'], bandNormal: [0.32, 0.88, 0.35] },
+      disk: { cool: '#b8320c', warm: '#ff8a2e', hot: '#ffe2b8', blue: '#b9d4ff', brightness: 5, tempScale: 1 },
+    },
+    {
+      name: 'Amber Shoals',
+      seed: 52817,
+      planets: 5,
+      shardQuota: 4,
+      debris: 1,
+      fuel: 1,
+      oxygen: 1,
+      shards: 1,
+      oxygenDrain: 1,
+      scoreMult: 1.25,
+      nebula: { seed: 11.7, intensity: 0.26, colors: ['#33240f', '#7a4a16', '#c98a3a', '#f0dcae'], bandNormal: [-0.45, 0.8, 0.2] },
+      disk: { cool: '#c2410c', warm: '#ffa24a', hot: '#fff0c8', blue: '#d6e4ff', brightness: 5.5, tempScale: 1.1 },
+    },
+    {
+      name: 'The Quiet Fold',
+      seed: 90411,
+      planets: 5,
+      shardQuota: 5,
+      debris: 1.3,
+      fuel: 0.9,
+      oxygen: 0.85,
+      shards: 0.95,
+      oxygenDrain: 1.1,
+      scoreMult: 1.5,
+      nebula: { seed: 23.1, intensity: 0.21, colors: ['#0b2a36', '#1d4f6e', '#3f8f8a', '#bfe3e0'], bandNormal: [0.1, 0.6, -0.8] },
+      disk: { cool: '#8a3410', warm: '#ff9a5a', hot: '#f2f4ff', blue: '#9cc2ff', brightness: 4.6, tempScale: 1.35 },
+    },
+    {
+      name: 'Cinder Veil',
+      seed: 14593,
+      planets: 6,
+      shardQuota: 6,
+      debris: 1.6,
+      fuel: 0.8,
+      oxygen: 0.8,
+      shards: 0.9,
+      oxygenDrain: 1.2,
+      scoreMult: 1.8,
+      nebula: { seed: 37.9, intensity: 0.28, colors: ['#2a0c0c', '#6e1a1a', '#b8401f', '#e8b49a'], bandNormal: [0.7, 0.5, -0.5] },
+      disk: { cool: '#9a1a06', warm: '#ff5a1e', hot: '#ffd09a', blue: '#c9d8ff', brightness: 6, tempScale: 0.85 },
+    },
+    {
+      name: 'Hollow Crown',
+      seed: 66029,
+      planets: 6,
+      shardQuota: 7,
+      debris: 2,
+      fuel: 0.7,
+      oxygen: 0.7,
+      shards: 0.9,
+      oxygenDrain: 1.3,
+      scoreMult: 2.2,
+      nebula: { seed: 52.4, intensity: 0.24, colors: ['#160f2e', '#3d1f6e', '#7a5ab8', '#e2d8ff'], bandNormal: [-0.2, 0.95, -0.25] },
+      disk: { cool: '#a02a2a', warm: '#ff8a6a', hot: '#fff4ff', blue: '#b2a8ff', brightness: 5.2, tempScale: 1.2 },
+    },
+  ],
+}
+
+/**
+ * Endless sectors after SECTORS.LIST: k = 1, 2, … sectors past the last hand-made one. Each knob moves
+ * from the last hand-made value by STEP per sector up to its limit. Looks cycle through the list with a
+ * new nebula seed and band orientation.
+ */
+export const ENDLESS = {
+  NAME: 'Outer Deep',
+  SEED: 31337,
+  PLANETS: [4, 6],
+  QUOTA_STEP: 1,
+  QUOTA_MAX: 14,
+  DEBRIS_STEP: 0.2,
+  DEBRIS_MAX: 3,
+  PICKUP_STEP: -0.05,
+  PICKUP_MIN: 0.45,
+  OXYGEN_DRAIN_STEP: 0.06,
+  OXYGEN_DRAIN_MAX: 1.8,
+  SCORE_STEP: 0.4,
+} as const
+
+/** Rewards for crossing into the next sector. Bonus points are scaled by the cleared sector's multiplier. */
+export const SECTOR_CLEAR = {
+  POINTS: 2500,
+  /** Bonus points per sector number cleared (sector 1 = 1). */
+  POINTS_PER_SECTOR: 1500,
+  SHARDS: 2,
+  SHARDS_PER_SECTOR: 1,
+  /** Fuel, oxygen and hull are topped up to this fraction of capacity (never lowered). */
+  REFILL: 1,
+} as const
+
+/**
+ * The wormhole out of a sector opens once the shard quota is met, on a circular orbit like everything
+ * else. Flying into its core starts the jump.
+ */
+export const WORMHOLE = {
+  /** Orbit radius range (units) and max inclination. */
+  ORBIT_R: [240, 420],
+  MAX_INCLINATION: 0.25,
+  /** It opens at least this far from the ship, and clear of planet orbits by this many planet radii. */
+  MIN_SHIP_DISTANCE: 150,
+  PLANET_CLEARANCE: 4,
+  /** Visible core radius and capture radius (ship center inside → jump). */
+  RADIUS: 7,
+  CAPTURE_RADIUS: 8.5,
+  /** Seconds the opening takes; it can be entered once half open. */
+  OPEN_SEC: 2.5,
+  /** Glow billboard size in core radii, and the minimum on-screen size in pixels (stays visible far away). */
+  GLOW_SCALE: 3.4,
+  MIN_PX: 14,
+  /** Swirl turns, rotation speed (rad/s) and HDR brightness. */
+  TWIST: 2.4,
+  SPIN: 0.9,
+  INTENSITY: 1.5,
+} as const
+
+/** The jump: the ship is drawn into the core and stretched, the tunnel and a white-out cover the sector swap. */
+export const WARP = {
+  /** Seconds from capture to the swap (ship pulled in, tunnel rising) and of the fade afterwards. */
+  PULL_SEC: 1.4,
+  FADE_SEC: 1.8,
+  /** White-out starts this many seconds before the swap. */
+  FLASH_LEAD: 0.35,
+  /** Ship length factor at the swap. */
+  STRETCH: 5,
+  /** Extra camera FOV at full tunnel. */
+  FOV_KICK: 28,
+  /** Tunnel streaks: angular count, scroll speed and HDR brightness. */
+  STREAKS: 46,
+  SPEED: 2.6,
+  INTENSITY: 1.6,
+} as const
+
+/**
+ * Permanent ship upgrades bought with banked chrono shards between runs or sectors.
+ * `perLevel` meaning: capacity / thrust / reach +fraction, flow / damage -fraction.
+ */
+export const UPGRADES: Record<UpgradeId, UpgradeSpec> = {
+  fuelTank: { name: 'Expanded tanks', detail: '+25% fuel capacity', costs: [4, 8, 14], perLevel: 0.25 },
+  oxygen: { name: 'O₂ recycler', detail: '+25% oxygen capacity', costs: [4, 8, 14], perLevel: 0.25 },
+  hull: { name: 'Hull plating', detail: '+25% hull integrity', costs: [5, 10, 16], perLevel: 0.25 },
+  thrust: { name: 'Drive tuning', detail: '+10% main thrust', costs: [6, 12, 20], perLevel: 0.1 },
+  injectors: { name: 'Injector refit', detail: '-12% fuel flow', costs: [5, 10, 16], perLevel: 0.12 },
+  tidal: { name: 'Tidal bracing', detail: '-20% tidal hull damage', costs: [6, 12, 20], perLevel: 0.2 },
+  heat: { name: 'Ablative shield', detail: '-25% disk heat damage', costs: [5, 11], perLevel: 0.25 },
+  collector: { name: 'Field collector', detail: '+35% pickup reach', costs: [4, 9], perLevel: 0.35 },
+}
+
+export const UPGRADE_ORDER: readonly UpgradeId[] = ['fuelTank', 'oxygen', 'hull', 'thrust', 'injectors', 'tidal', 'heat', 'collector']
+
+/** Progress saved in localStorage (bank, upgrades, records, checkpoint, settings). */
+export const SAVE = {
+  KEY: 'event-horizon.save',
+  VERSION: 1,
 } as const
 
 export const DEBUG = {

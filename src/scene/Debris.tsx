@@ -44,6 +44,8 @@ function rockGeometry(detail: number): BufferGeometry {
 /** The debris belts: one instanced mesh, lit by the disk like the ship. Shattered rocks are hidden. */
 export function Debris() {
   const detail = useGameStore((s) => QUALITY_PRESETS[s.quality].rockDetail)
+  // A new sector has a different number of rocks: rebuild the instanced mesh.
+  const worldVersion = useGameStore((s) => s.worldVersion)
 
   const sys = useMemo(() => {
     const geometry = rockGeometry(detail)
@@ -57,7 +59,7 @@ export function Debris() {
     mesh.instanceMatrix.setUsage(DynamicDrawUsage)
     mesh.frustumCulled = false
     return { geometry, material, mesh }
-  }, [detail])
+  }, [detail, worldVersion])
 
   useEffect(
     () => () => {

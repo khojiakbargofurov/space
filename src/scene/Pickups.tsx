@@ -21,6 +21,7 @@ import {
 } from 'three'
 import { PICKUP_LOOK } from '../game/constants'
 import { PICKUP_KINDS, pickupRange, pickups } from '../game/pickups'
+import { useGameStore } from '../game/store'
 import type { PickupKind } from '../game/types'
 import { haloFragment, haloVertex, pickupFragment, pickupVertex } from '../shaders/pickup'
 
@@ -37,8 +38,12 @@ function kindGeometry(kind: PickupKind): BufferGeometry {
   return new OctahedronGeometry(0.7, 0).scale(1, 2.2, 1)
 }
 
-/** Fuel cells, oxygen canisters and chrono shards: one instanced mesh per kind plus a shared halo layer. */
+/**
+ * Fuel cells, oxygen canisters and chrono shards: one instanced mesh per kind plus a shared halo layer.
+ * Rebuilt per sector (the counts change).
+ */
 export function Pickups() {
+  const worldVersion = useGameStore((s) => s.worldVersion)
   const sys = useMemo(() => {
     const root = new Group()
     const meshes = PICKUP_KINDS.map((kind) => {
@@ -88,7 +93,7 @@ export function Pickups() {
     halo.frustumCulled = false
     root.add(halo)
     return { root, meshes, haloGeometry, haloMaterial, position, size }
-  }, [])
+  }, [worldVersion])
 
   useEffect(
     () => () => {

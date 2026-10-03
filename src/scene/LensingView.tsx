@@ -10,7 +10,8 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import { BLACK_HOLE, DISK, GALAXY_BAND_NORMAL, LENSING, QUALITY_PRESETS, STARFIELD } from '../game/constants'
+import { BLACK_HOLE, DISK, LENSING, QUALITY_PRESETS, STARFIELD } from '../game/constants'
+import { sectorConfig } from '../game/sectors'
 import { useGameStore } from '../game/store'
 import { lensingFragment, lensingVertex } from '../shaders/lensing'
 
@@ -35,6 +36,7 @@ function starProbabilities(starCount: number): number[] {
 export function LensingView({ nebula }: { nebula: CubeTexture | null }) {
   const quality = useGameStore((s) => s.quality)
   const preset = QUALITY_PRESETS[quality]
+  const sector = useGameStore((s) => s.sector)
 
   const geometry = useMemo(() => {
     const g = new BufferGeometry()
@@ -70,13 +72,14 @@ export function LensingView({ nebula }: { nebula: CubeTexture | null }) {
           uDoppler: { value: DISK.DOPPLER_STRENGTH },
           uBeaming: { value: DISK.BEAMING_EXP },
           uTempFalloff: { value: DISK.TEMP_FALLOFF },
-          uTempScale: { value: DISK.TEMP_SCALE },
-          uDiskBrightness: { value: DISK.BRIGHTNESS },
+          // Disk colors, brightness and the band normal are per sector (set below).
+          uTempScale: { value: 1 },
+          uDiskBrightness: { value: 1 },
           uDiskOpacity: { value: DISK.OPACITY },
-          uColCool: { value: new Color(DISK.COLOR_COOL) },
-          uColWarm: { value: new Color(DISK.COLOR_WARM) },
-          uColHot: { value: new Color(DISK.COLOR_HOT) },
-          uColBlue: { value: new Color(DISK.COLOR_BLUE) },
+          uColCool: { value: new Color() },
+          uColWarm: { value: new Color() },
+          uColHot: { value: new Color() },
+          uColBlue: { value: new Color() },
           // stars
           uStarGrid: { value: STARFIELD.LAYERS.map((l) => l.grid) },
           uStarProb: { value: starProbabilities(preset.starCount) },
@@ -87,7 +90,7 @@ export function LensingView({ nebula }: { nebula: CubeTexture | null }) {
           uStarPower: { value: STARFIELD.BRIGHTNESS_POWER },
           uTwinkle: { value: STARFIELD.TWINKLE },
           uPixelAngle: { value: 0.001 },
-          uBandNormal: { value: new Vector3(...GALAXY_BAND_NORMAL).normalize() },
+          uBandNormal: { value: new Vector3(0, 1, 0) },
           uBandSigma: { value: STARFIELD.BAND_SIGMA },
           uBandFraction: { value: STARFIELD.BAND_FRACTION },
         },
@@ -100,6 +103,19 @@ export function LensingView({ nebula }: { nebula: CubeTexture | null }) {
 
   useEffect(() => () => geometry.dispose(), [geometry])
   useEffect(() => () => material.dispose(), [material])
+
+  // The sector's disk and galactic band (stars follow the same band as the baked nebula).
+  useEffect(() => {
+    const { disk, nebula } = sectorConfig(sector)
+    const u = material.uniforms
+    u.uTempScale.value = disk.tempScale
+    u.uDiskBrightness.value = disk.brightness
+    ;(u.uColCool.value as Color).set(disk.cool)
+    ;(u.uColWarm.value as Color).set(disk.warm)
+    ;(u.uColHot.value as Color).set(disk.hot)
+    ;(u.uColBlue.value as Color).set(disk.blue)
+    ;(u.uBandNormal.value as Vector3).set(...nebula.bandNormal).normalize()
+  }, [material, sector])
 
   useFrame((state, delta) => {
     const u = material.uniforms

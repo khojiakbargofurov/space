@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { ALARM, ARP, AUDIO, RESOURCES } from '../game/constants'
+import { shipStats } from '../game/stats'
 import { playSound, updateAudio } from '../audio/engine'
 import type { MusicParams } from '../audio/music'
 import type { SfxKind } from '../audio/sfx'
@@ -18,6 +19,7 @@ const EVENT_SFX: Record<RunEventKind, SfxKind> = {
   oxygen: 'oxygen',
   shard: 'shard',
   impact: 'impact',
+  wormhole: 'wormhole',
 }
 
 const DEATH_SFX: Record<DeathCause, SfxKind> = {
@@ -29,9 +31,9 @@ const DEATH_SFX: Record<DeathCause, SfxKind> = {
 
 /** 0 = quiet, 1 = warning, 2 = critical; mirrors the HUD warning priorities. */
 function alarmLevel(danger: number): number {
-  const fuel = run.fuel / RESOURCES.FUEL_MAX
-  const oxygen = run.oxygen / RESOURCES.OXYGEN_MAX
-  const hull = run.hull / RESOURCES.HULL_MAX
+  const fuel = run.fuel / shipStats.fuelMax
+  const oxygen = run.oxygen / shipStats.oxygenMax
+  const hull = run.hull / shipStats.hullMax
   if (
     danger > ALARM.DANGER_CRITICAL ||
     run.tidalStress > ALARM.TIDAL_CRITICAL ||
@@ -50,7 +52,7 @@ function alarmLevel(danger: number): number {
 
 /**
  * Feeds the audio engine from the simulation: score and ship sounds every frame, one-shots for run
- * events, launches and deaths. Runs after the ship and death sequence have updated.
+ * events, launches, wormhole jumps and deaths. Runs after the ship and death sequence have updated.
  */
 export function AudioDriver() {
   const st = useMemo(
@@ -72,6 +74,7 @@ export function AudioDriver() {
 
     if (flying && (st.lastPhase !== 'playing' || run.epoch !== st.lastEpoch)) playSound('launch')
     if (dead && st.lastPhase !== 'dead' && run.deathCause) playSound(DEATH_SFX[run.deathCause])
+    if (phase === 'warp' && st.lastPhase !== 'warp') playSound('warp')
     st.lastPhase = phase
     st.lastEpoch = run.epoch
 

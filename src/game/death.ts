@@ -1,12 +1,11 @@
 import { Quaternion, Vector3 } from 'three'
 import { BLACK_HOLE, BURST, DAMAGE_FX, DEATH } from './constants'
-import { resetRocks } from './debris'
 import { requestBurst } from './fx'
 import { integrateFlight, tidalStress } from './physics'
-import { resetPickups } from './pickups'
 import { planets } from './planets'
-import { decayDamageFx, resetRun, run } from './run'
-import { resetShip, ship } from './ship'
+import { decayDamageFx, run } from './run'
+import { sectorConfig } from './sectors'
+import { ship } from './ship'
 import { useGameStore } from './store'
 import type { DeathCause } from './types'
 
@@ -59,6 +58,8 @@ export function killShip(cause: DeathCause): void {
 
   useGameStore.getState().endRun({
     cause,
+    sector: run.sector,
+    sectorName: sectorConfig(run.sector).name,
     score: run.score,
     shards: run.shards,
     shipTime: run.shipTime,
@@ -101,14 +102,4 @@ export function stepDeath(dt: number, timeScale: number): void {
     // A drifting hulk that falls too deep is simply gone.
     if (tidalStress(ship.position.length()) >= 1) ship.hidden = true
   }
-}
-
-/** New run from the spawn point: ship, clocks, resources, pickups and debris reset; enters `phase`. */
-export function restartRun(phase: 'playing' | 'menu'): void {
-  resetShip(ship)
-  resetRun(planets)
-  resetPickups(run.worldTime)
-  resetRocks(planets, run.worldTime)
-  run.epoch++
-  useGameStore.getState().beginRun(phase)
 }

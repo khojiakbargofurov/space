@@ -122,11 +122,13 @@ function buildView(p: Planet, sphere: SphereGeometry, ring: RingGeometry, octave
 /**
  * The planetary system. Positions come from game/planets (moved along universe time by the
  * simulation clock); this only mirrors them into the scene and feeds the shaders.
- * Rebuilt (and the old GPU resources disposed) when the quality preset changes.
+ * Rebuilt (and the old GPU resources disposed) when the quality preset or the sector changes.
  */
 export function Planets() {
   const segments = useGameStore((s) => QUALITY_PRESETS[s.quality].planetSegments)
   const octaves = useGameStore((s) => QUALITY_PRESETS[s.quality].planetOctaves)
+  // A new sector replaces the planets: rebuild the views.
+  const worldVersion = useGameStore((s) => s.worldVersion)
 
   const system = useMemo(() => {
     const sphere = new SphereGeometry(1, segments, Math.max(8, segments / 2))
@@ -135,7 +137,7 @@ export function Planets() {
     const views = planets.map((p) => buildView(p, sphere, ring, octaves))
     for (const v of views) root.add(v.root)
     return { sphere, ring, root, views }
-  }, [segments, octaves])
+  }, [segments, octaves, worldVersion])
 
   useEffect(
     () => () => {

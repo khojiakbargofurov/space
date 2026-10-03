@@ -2,6 +2,7 @@ import { Matrix4, Quaternion, Vector3 } from 'three'
 import { BLACK_HOLE, SHIP } from './constants'
 import { integrateFlight } from './physics'
 import type { Planet } from './planets'
+import { shipStats } from './stats'
 import type { FlightInput } from './types'
 
 /**
@@ -142,7 +143,7 @@ export function stepShip(
   s.throttle += (forward - s.throttle) * spool
   s.boost += ((input.boost && forward > 0 ? 1 : 0) - s.boost) * spool
 
-  const main = s.throttle * SHIP.MAIN_THRUST * (1 + (SHIP.BOOST_MULTIPLIER - 1) * s.boost)
+  const main = s.throttle * SHIP.MAIN_THRUST * shipStats.thrust * (1 + (SHIP.BOOST_MULTIPLIER - 1) * s.boost)
   s.localAccel.set(
     input.strafeX * SHIP.STRAFE_THRUST,
     input.strafeY * SHIP.STRAFE_THRUST,

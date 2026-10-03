@@ -1,7 +1,7 @@
 import { Vector3 } from 'three'
 import { DEBRIS, DEBRIS_LOOK } from './constants'
 import { type Orbiter, createOrbiter, setOrbit, updateOrbiter } from './orbits'
-import { type Planet, planets } from './planets'
+import type { Planet } from './planets'
 import { createRng } from './random'
 
 /** A rock in a debris belt. Shattered rocks respawn somewhere else in their belt. */
@@ -19,7 +19,7 @@ export interface Rock {
   respawnAt: number
 }
 
-const rng = createRng(DEBRIS.SEED)
+let rng = createRng(1)
 
 function range([lo, hi]: readonly [number, number]): number {
   return lo + (hi - lo) * rng()
@@ -46,10 +46,13 @@ function rollOrbit(rock: Rock, planets: readonly Planet[]): void {
 
 export const rocks: Rock[] = []
 
-export function generateRocks(planets: readonly Planet[]): void {
+/** New belts for a sector: rock counts scaled by `density`, deterministic per seed. */
+export function generateRocks(planets: readonly Planet[], density: number, seed: number, worldTime: number): void {
+  rng = createRng(seed)
   rocks.length = 0
   DEBRIS.BELTS.forEach((belt, b) => {
-    for (let i = 0; i < belt.count; i++) {
+    const count = Math.round(belt.count * density)
+    for (let i = 0; i < count; i++) {
       const rock: Rock = {
         belt: b,
         orbit: createOrbiter(),
@@ -61,18 +64,10 @@ export function generateRocks(planets: readonly Planet[]): void {
         respawnAt: 0,
       }
       rollOrbit(rock, planets)
+      updateOrbiter(rock.orbit, worldTime)
       rocks.push(rock)
     }
   })
-}
-
-/** Fresh belts for a new run (same rocks, new places). */
-export function resetRocks(planets: readonly Planet[], worldTime: number): void {
-  for (const r of rocks) {
-    rollOrbit(r, planets)
-    r.active = true
-    updateOrbiter(r.orbit, worldTime)
-  }
 }
 
 export function shatterRock(rock: Rock, worldTime: number): void {
@@ -91,8 +86,6 @@ export function updateRocks(planets: readonly Planet[], worldTime: number, shipP
     updateOrbiter(r.orbit, worldTime)
   }
 }
-
-generateRocks(planets)
 
 const _n = new Vector3()
 const _rel = new Vector3()

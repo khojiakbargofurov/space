@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { PICKUP_KINDS } from '../game/pickups'
 import { planets } from '../game/planets'
+import { sectorConfig, sectorLabel } from '../game/sectors'
 import { useGameStore } from '../game/store'
 import { type HudElements, hudDisplay } from './hudDisplay'
 
@@ -23,12 +24,16 @@ const RESOURCE_ROWS = [
 const PICKUP_LABELS = { fuel: 'FUEL', oxygen: 'O₂', shard: 'SHARD' } as const
 
 /**
- * Flight HUD: time dilation gauge with the ship and universe clocks, score and shards, flight data,
- * resource gauges, warnings, damage flash, toasts, planet / nearest-pickup markers and the prograde marker. Static markup only; the values are written
- * by the in-canvas HudUpdater through `hudDisplay`.
+ * Flight HUD: time dilation gauge with the ship and universe clocks, score and shards, sector and
+ * wormhole quota, flight data, resource gauges, warnings, damage flash, toasts, planet / nearest-pickup
+ * / wormhole markers, the prograde marker and the sector banner shown on launch. Static markup only;
+ * the values are written by the in-canvas HudUpdater through `hudDisplay`.
  */
 export function Hud() {
   const flying = useGameStore((s) => s.phase === 'playing')
+  const sector = useGameStore((s) => s.sector)
+  // A new sector has other planets: re-render the markers.
+  const worldVersion = useGameStore((s) => s.worldVersion)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,6 +49,9 @@ export function Hud() {
       score: one(root, 'score'),
       rate: one(root, 'rate'),
       shards: one(root, 'shards'),
+      sector: one(root, 'sector'),
+      quota: one(root, 'quota'),
+      quotaBar: one(root, 'quota-bar'),
       speed: one(root, 'speed'),
       radial: one(root, 'radial'),
       distance: one(root, 'distance'),
@@ -66,14 +74,17 @@ export function Hud() {
       prograde: one(root, 'prograde'),
       pickupMarkers: all(root, 'pickup-marker'),
       pickupDistances: all(root, 'pickup-distance'),
+      wormhole: one(root, 'wormhole'),
+      wormholeDistance: one(root, 'wormhole-distance'),
     }
     hudDisplay.el = elements
     return () => {
       hudDisplay.el = null
     }
-  }, [flying])
+  }, [flying, worldVersion])
 
   if (!flying) return null
+  const cfg = sectorConfig(sector)
   return (
     <div ref={ref} className="hud">
       <div className="hud-hit" data-hud="hit" />
@@ -97,7 +108,21 @@ export function Hud() {
             </div>
           </div>
         ))}
+        <div className="hud-wormhole hidden" data-hud="wormhole">
+          <div className="hud-wormhole-ring" />
+          <div className="hud-marker-arrow" />
+          <div className="hud-wormhole-label">
+            WORMHOLE <span data-hud="wormhole-distance" />
+          </div>
+        </div>
         <div className="hud-prograde" data-hud="prograde" />
+      </div>
+
+      <div className="hud-banner" key={worldVersion}>
+        <div className="hud-banner-title">{sectorLabel(sector)}</div>
+        <div className="hud-banner-line">
+          Collect {cfg.shardQuota} chrono shards to open the wormhole · score ×{cfg.scoreMult.toFixed(2)}
+        </div>
       </div>
 
       <div className="hud-top">
@@ -127,6 +152,15 @@ export function Hud() {
         <div className="hud-score-rate" data-hud="rate">+0/s</div>
         <div className="hud-shards">
           <span className="hud-shard-icon">◆</span> <span data-hud="shards">0</span>
+        </div>
+        <div className="hud-sector" data-hud="sector">
+          <div className="hud-sector-name">
+            {sectorLabel(sector)} <span className="hud-sector-mult">×{cfg.scoreMult.toFixed(2)}</span>
+          </div>
+          <div className="hud-quota-bar">
+            <div className="hud-quota-fill" data-hud="quota-bar" />
+          </div>
+          <div className="hud-quota" data-hud="quota" />
         </div>
       </div>
 

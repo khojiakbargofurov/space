@@ -16,6 +16,9 @@ export type SfxKind =
   | 'spaghettified'
   | 'power-down'
   | 'launch'
+  | 'wormhole'
+  | 'warp'
+  | 'purchase'
 
 /** Note frequencies used by the chimes (key of D). */
 const D5 = 587.33
@@ -151,6 +154,33 @@ export function playSfx(core: AudioCore, kind: SfxKind): void {
       const dur = DEATH.POWER_FADE_SEC * 1.6
       tone(core, 'sine', 220, 36, t, 0.02, dur, v)
       tone(core, 'triangle', 110, 20, t, 0.02, dur, v * 0.6)
+      break
+    }
+    case 'wormhole': {
+      // The way out tears open: a low swell under a rising, shimmering fifth.
+      const v = SFX.WORMHOLE
+      noise(core, 'bandpass', 300, 5200, 4, t, 0.8, 2.6, v * 0.7)
+      tone(core, 'sine', 73.42, 146.83, t, 0.9, 2.8, v * 0.8)
+      bell(core, D5, t + 0.5, 2.2, v * 0.5)
+      bell(core, A5, t + 0.75, 2.2, v * 0.45)
+      bell(core, D6, t + 1.0, 2.6, v * 0.4)
+      break
+    }
+    case 'warp': {
+      // Falling through: a long rising roar that whites out with the screen, then a deep landing thud.
+      const v = SFX.WARP
+      noise(core, 'bandpass', 120, 7000, 1.4, t, 1.1, 1.8, v)
+      tone(core, 'sawtooth', 40, 620, t, 1.0, 1.6, v * 0.25)
+      tone(core, 'sine', 55, 440, t, 1.0, 1.7, v * 0.5)
+      noise(core, 'lowpass', 3000, 90, 0.7, t + 1.4, 0.01, 2.4, v * 0.8)
+      tone(core, 'sine', 80, 30, t + 1.4, 0.01, 2.2, v * 0.9)
+      break
+    }
+    case 'purchase': {
+      const v = SFX.PURCHASE
+      tone(core, 'triangle', A5, A5, t, 0.005, 0.25, v)
+      tone(core, 'triangle', D6, D6, t + 0.07, 0.005, 0.5, v * 0.9)
+      bell(core, A6, t + 0.12, 0.9, v * 0.4)
       break
     }
     case 'launch': {

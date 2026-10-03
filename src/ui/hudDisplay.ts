@@ -12,6 +12,10 @@ export interface HudElements {
   score: HTMLElement
   rate: HTMLElement
   shards: HTMLElement
+  /** Sector block (data-open mirrors the wormhole), quota text and bar. */
+  sector: HTMLElement
+  quota: HTMLElement
+  quotaBar: HTMLElement
   speed: HTMLElement
   radial: HTMLElement
   distance: HTMLElement
@@ -36,6 +40,8 @@ export interface HudElements {
   /** Nearest-pickup markers in PICKUP_KINDS order. */
   pickupMarkers: HTMLElement[]
   pickupDistances: HTMLElement[]
+  wormhole: HTMLElement
+  wormholeDistance: HTMLElement
 }
 
 export const hudDisplay: { el: HudElements | null } = { el: null }

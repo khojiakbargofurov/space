@@ -75,15 +75,15 @@ function makeName(rng: () => number, index: number): string {
   return `${s[0].toUpperCase()}${s.slice(1)} ${numeral}`
 }
 
-/** Builds the planetary system for a seed (deterministic). Orbits never cross the spawn radius. */
-export function generatePlanets(seed: number): Planet[] {
+/** Builds a system of `count` planets for a seed (deterministic). Orbits never cross the spawn radius. */
+export function generatePlanets(seed: number, count: number): Planet[] {
   const rng = createRng(seed)
   const spawnR = new Vector3(...SHIP.SPAWN_POSITION).length()
   const yAxis = new Vector3(0, 1, 0)
   const planets: Planet[] = []
   let orbit = PLANETS.MIN_ORBIT
 
-  for (let i = 0; i < PLANETS.COUNT; i++) {
+  for (let i = 0; i < count; i++) {
     // The second world is always a gas giant so every system has one big slingshot target.
     const kind = i === 1 ? 'gas' : pickKind(rng)
     const radius = range(rng, PLANETS.RADIUS[kind])
@@ -147,6 +147,11 @@ export function updatePlanets(list: readonly Planet[], universeTime: number): vo
   }
 }
 
-/** The current system. Regenerated per sector from stage 7. */
-export const planets: Planet[] = generatePlanets(PLANETS.SEED)
-updatePlanets(planets, 0)
+/** The current sector's system (filled by loadSector; the array itself is kept, its contents replaced). */
+export const planets: Planet[] = []
+
+export function setPlanets(list: readonly Planet[], universeTime: number): void {
+  planets.length = 0
+  planets.push(...list)
+  updatePlanets(planets, universeTime)
+}

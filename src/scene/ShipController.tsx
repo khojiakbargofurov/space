@@ -7,10 +7,12 @@ import { planets } from '../game/planets'
 import { run, updateBonuses } from '../game/run'
 import { createFlightInput, ship, stepShip } from '../game/ship'
 import { updateSurvival } from '../game/survival'
+import { startWarp } from '../game/warp'
+import { insideWormhole } from '../game/wormhole'
 
 /**
  * Reads pilot input, integrates the ship under thrust and gravity, then runs bonuses and survival
- * (resources, hazards, pickups, death). Mounted only in the 'playing' phase.
+ * (resources, hazards, pickups, death) and checks for the wormhole jump. Mounted only in the 'playing' phase.
  */
 export function ShipController() {
   const canvas = useThree((s) => s.gl.domElement)
@@ -45,6 +47,7 @@ export function ShipController() {
     updateBonuses(ship.position, ship.velocity, dt, planets)
     const cause = updateSurvival(dt, run.dilation)
     if (cause) killShip(cause)
+    else if (insideWormhole(ship.position)) startWarp()
   }, -3)
 
   return null

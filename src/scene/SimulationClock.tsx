@@ -7,10 +7,11 @@ import { planets, updatePlanets } from '../game/planets'
 import { advanceClocks, run } from '../game/run'
 import { ship } from '../game/ship'
 import { useGameStore } from '../game/store'
+import { updateWormhole } from '../game/wormhole'
 
 /**
  * First thing every frame: measures the ship's time dilation, advances the ship / universe clocks
- * and moves the planets, pickups and debris along universe time. In the menu the world runs at 1x;
+ * and moves the planets, pickups, debris and the wormhole along universe time. In the menu the world runs at 1x;
  * after a death the world keeps running at the wreck's dilation while the run clocks stand still.
  */
 export function SimulationClock() {
@@ -23,6 +24,7 @@ export function SimulationClock() {
     updatePlanets(planets, run.worldTime)
     updatePickups(run.worldTime, ship.position)
     updateRocks(planets, run.worldTime, ship.position)
+    updateWormhole(run.worldTime, dt)
   }, -4)
 
   return null

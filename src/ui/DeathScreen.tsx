@@ -13,12 +13,14 @@ const EPITAPHS: Record<DeathCause, { title: string; line: string }> = {
 /** End-of-run summary, faded in after the death sequence has had a moment to play. */
 export function DeathScreen() {
   const death = useGameStore((s) => (s.phase === 'dead' ? s.death : null))
+  const bank = useGameStore((s) => s.bank)
   if (!death) return null
   const { title, line } = EPITAPHS[death.cause]
 
   const rows: [string, string][] = [
     ['SCORE', formatPoints(death.score)],
-    ['CHRONO SHARDS', `${death.shards}`],
+    ['SECTOR', `${death.sector + 1} · ${death.sectorName}`],
+    ['CHRONO SHARDS', `${death.shards} (◆ ${bank} banked)`],
     ['SHIP TIME', formatClock(death.shipTime)],
     ['UNIVERSE TIME', formatClock(death.universeTime)],
     ['TIME DEBT', `+${formatDuration(death.universeTime - death.shipTime)}`],
@@ -40,7 +42,7 @@ export function DeathScreen() {
       </div>
       <div className="death-keys">
         <span><kbd>R</kbd> new run</span>
-        <span><kbd>Enter</kbd> orbit view</span>
+        <span><kbd>Enter</kbd> orbit view · upgrades</span>
       </div>
     </div>
   )

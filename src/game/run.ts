@@ -1,7 +1,8 @@
 import type { Vector3 } from 'three'
-import { BLACK_HOLE, CLOSE_PASS, DAMAGE_FX, DANGER, RESOURCES, SCORE, SLINGSHOT } from './constants'
+import { BLACK_HOLE, CLOSE_PASS, DAMAGE_FX, DANGER, SCORE, SLINGSHOT } from './constants'
 import { timeDilation } from './physics'
 import type { Planet } from './planets'
+import { shipStats } from './stats'
 import type { DamageSource, DeathCause } from './types'
 
 /**
@@ -44,6 +45,15 @@ export interface RunState {
   /** Closest approach to the hole this run. */
   minR: number
 
+  /** Current sector index, shards collected in it and the quota that opens its wormhole. */
+  sector: number
+  sectorShards: number
+  shardQuota: number
+  /** Multiplier on every point scored in this sector. */
+  scoreMult: number
+  /** Multiplier on oxygen consumption in this sector. */
+  oxygenDrain: number
+
   /** Bumped on every new run (cameras use it to restart their intro). */
   epoch: number
   deathCause: DeathCause | null
@@ -61,9 +71,9 @@ export const run: RunState = {
   approaching: false,
   approachMinR: Infinity,
   closePassCooldown: 0,
-  fuel: RESOURCES.FUEL_MAX,
-  oxygen: RESOURCES.OXYGEN_MAX,
-  hull: RESOURCES.HULL_MAX,
+  fuel: shipStats.fuelMax,
+  oxygen: shipStats.oxygenMax,
+  hull: shipStats.hullMax,
   shards: 0,
   tidalStress: 0,
   heat: 0,
@@ -73,12 +83,17 @@ export const run: RunState = {
   shake: 0,
   flash: 0,
   minR: Infinity,
+  sector: 0,
+  sectorShards: 0,
+  shardQuota: 1,
+  scoreMult: 1,
+  oxygenDrain: 1,
   epoch: 0,
   deathCause: null,
   deathTimer: 0,
 }
 
-export type RunEventKind = 'slingshot' | 'close-pass' | 'fuel' | 'oxygen' | 'shard' | 'impact'
+export type RunEventKind = 'slingshot' | 'close-pass' | 'fuel' | 'oxygen' | 'shard' | 'impact' | 'wormhole'
 
 export interface RunEvent {
   kind: RunEventKind
@@ -102,6 +117,13 @@ export function emitRunEvent(e: RunEvent): void {
   for (const fn of listeners) fn(e)
 }
 
+/** Adds `points` scaled by the sector's score multiplier; returns what was actually added. */
+export function award(points: number): number {
+  const p = Math.round(points * run.scoreMult)
+  run.score += p
+  return p
+}
+
 /** Starts a fresh run: clocks, score, resources and bonus tracking reset (world time keeps flowing). */
 export function resetRun(planets: readonly Planet[]): void {
   run.shipTime = 0
@@ -112,9 +134,9 @@ export function resetRun(planets: readonly Planet[]): void {
   run.approaching = false
   run.approachMinR = Infinity
   run.closePassCooldown = 0
-  run.fuel = RESOURCES.FUEL_MAX
-  run.oxygen = RESOURCES.OXYGEN_MAX
-  run.hull = RESOURCES.HULL_MAX
+  run.fuel = shipStats.fuelMax
+  run.oxygen = shipStats.oxygenMax
+  run.hull = shipStats.hullMax
   run.shards = 0
   run.tidalStress = 0
   run.heat = 0
@@ -162,7 +184,7 @@ export function advanceClocks(dt: number, dilation: number, flying: boolean): vo
   if (!flying) return
   run.shipTime += dt
   run.universeTime += dt * dilation
-  run.score += (dilation - 1) * dt * SCORE.POINTS_PER_DEBT_SEC
+  run.score += (dilation - 1) * dt * SCORE.POINTS_PER_DEBT_SEC * run.scoreMult
   if (dilation > run.peakDilation) run.peakDilation = dilation
 }
 
@@ -178,8 +200,7 @@ export function updateBonuses(pos: Vector3, vel: Vector3, dt: number, planets: r
     p.inSoi = inside
     if (inside) continue
     if (!p.passVoid && p.assist >= SLINGSHOT.MIN_GAIN) {
-      const points = Math.round(p.assist * SLINGSHOT.POINTS_PER_SPEED)
-      run.score += points
+      const points = award(p.assist * SLINGSHOT.POINTS_PER_SPEED)
       emitRunEvent({ kind: 'slingshot', title: `SLINGSHOT · ${p.name}`, detail: `+${p.assist.toFixed(1)} u/s`, points })
     }
     p.assist = 0
@@ -197,8 +218,7 @@ export function updateBonuses(pos: Vector3, vel: Vector3, dt: number, planets: r
     // A periapsis inside the lethal radius never counts (the run is lost there anyway).
     if (minR < CLOSE_PASS.MAX_RS * rs && minR > DANGER.LETHAL_RADIUS_RS * rs && run.closePassCooldown <= 0) {
       const d = timeDilation(minR)
-      const points = Math.round(CLOSE_PASS.POINTS * (d - 1))
-      run.score += points
+      const points = award(CLOSE_PASS.POINTS * (d - 1))
       run.closePassCooldown = CLOSE_PASS.COOLDOWN
       emitRunEvent({ kind: 'close-pass', title: 'CLOSE PASS', detail: `${(minR / rs).toFixed(2)} rs · ×${d.toFixed(2)}`, points })
     }
