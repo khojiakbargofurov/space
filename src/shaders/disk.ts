@@ -1,24 +1,12 @@
-import { noiseGLSL } from './noise'
-
-export const accretionDiskVertex = /* glsl */ `
-varying vec3 vWorld;
-
-void main() {
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vWorld = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}
-`
-
 /**
- * Thin disk in the world XZ plane, orbiting counter-clockwise seen from +Y.
+ * Accretion disk emission at a point where a traced ray crosses the y = 0 plane.
+ * Requires noise.ts (gnoise, fbm) and uTime.
  * - Turbulence: domain-warped fbm in (angle, log r), sheared by Keplerian rotation.
  *   Two layers on offset flow cycles are cross-faded so the shear never winds up forever.
  * - Doppler: g = D * sqrt(1 - rs/r) shifts color temperature and beams intensity by g^n.
+ * - Radiative transfer through a thin slab: optical depth tau / |cos i|.
  */
-export const accretionDiskFragment = /* glsl */ `
-uniform float uTime;
-uniform float uRs;
+export const diskGLSL = /* glsl */ `
 uniform float uInner;
 uniform float uOuter;
 uniform float uOmega;
@@ -32,16 +20,12 @@ uniform float uDoppler;
 uniform float uBeaming;
 uniform float uTempFalloff;
 uniform float uTempScale;
-uniform float uBrightness;
-uniform float uMaxGrazing;
+uniform float uDiskBrightness;
+uniform float uDiskOpacity;
 uniform vec3 uColCool;
 uniform vec3 uColWarm;
 uniform vec3 uColHot;
 uniform vec3 uColBlue;
-
-varying vec3 vWorld;
-
-${noiseGLSL}
 
 vec3 heatColor(float t) {
   vec3 c = mix(uColCool, uColWarm, smoothstep(0.0, 0.55, t));
@@ -59,8 +43,9 @@ float flowLayer(float theta, float lr, float omega, float phase) {
   return fbm(q + vec3(w * uWarp, 0.0));
 }
 
-void main() {
-  vec2 p = vWorld.xz;
+/** rgb = emitted light reaching the camera, a = fraction of light from behind that is absorbed. */
+vec4 diskSample(vec3 hit, vec3 rayDir, float rs) {
+  vec2 p = hit.xz;
   float r = length(p);
   float x = uInner / r;
   float rn = (r - uInner) / (uOuter - uInner);
@@ -68,34 +53,27 @@ void main() {
   float theta = atan(p.y, p.x);
   float omega = uOmega * pow(x, 1.5);
 
-  // Turbulent density, two cross-faded flow layers
   float ph = fract(uTime / uFlowPeriod);
   float w0 = 1.0 - abs(2.0 * ph - 1.0);
   float n = flowLayer(theta, lr, omega, 0.0) * w0 + flowLayer(theta, lr, omega, 0.5) * (1.0 - w0);
   float density = mix(0.18, 1.0, smoothstep(-0.32, 0.45, n));
   density *= 1.0 - uRingContrast + uRingContrast * (0.5 + 0.5 * gnoise(vec3(lr * uRingFreq, 0.5, 1.7)));
+  density *= smoothstep(0.0, 0.035, rn) * (1.0 - smoothstep(0.45, 1.0, rn));
 
-  // Radial profile
   float temp = pow(x, uTempFalloff);
-  float edges = smoothstep(0.0, 0.035, rn) * (1.0 - smoothstep(0.45, 1.0, rn));
 
-  // Relativistic Doppler + gravitational redshift
+  // The photon travels opposite to the traced ray.
+  vec3 toObserver = -rayDir;
   vec3 vdir = vec3(-p.y, 0.0, p.x) / r;
-  vec3 toCam = normalize(cameraPosition - vWorld);
-  float beta = min(uDoppler * sqrt(uRs / (2.0 * r)), 0.9);
+  float beta = min(uDoppler * sqrt(rs / (2.0 * r)), 0.9);
   float gamma = inversesqrt(1.0 - beta * beta);
-  float D = 1.0 / (gamma * (1.0 - beta * dot(vdir, toCam)));
-  float g = D * sqrt(max(1.0 - uRs / r, 0.0));
+  float D = 1.0 / (gamma * (1.0 - beta * dot(vdir, toObserver)));
+  float g = D * sqrt(max(1.0 - rs / r, 0.0));
   float beam = pow(g, uBeaming);
 
-  // Optically thin: longer path through the disk at grazing angles, fading out exactly edge-on
-  float mu = abs(toCam.y);
-  float grazing = min(1.0 / max(mu, 1e-3), uMaxGrazing) * smoothstep(0.0, 0.04, mu);
-
-  vec3 col = heatColor(temp * g * uTempScale) * (temp * temp * density * edges * beam * grazing * uBrightness);
-  gl_FragColor = vec4(col, 1.0);
-
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
+  float tau = uDiskOpacity * density / max(abs(rayDir.y), 0.02);
+  float absorb = 1.0 - exp(-tau);
+  vec3 source = heatColor(temp * g * uTempScale) * (temp * temp * beam * uDiskBrightness);
+  return vec4(source * absorb, absorb);
 }
 `

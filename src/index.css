@@ -29,3 +29,36 @@ canvas {
   user-select: none;
   z-index: 10;
 }
+
+.quality-picker {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  z-index: 10;
+}
+
+.quality-picker button {
+  padding: 2px 8px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9a9a9a;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.quality-picker button:hover {
+  color: #e8e8e8;
+}
+
+.quality-picker button.active {
+  color: #000;
+  background: #9fe8a0;
+}

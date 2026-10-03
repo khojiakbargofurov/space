@@ -1,10 +1,11 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { useThree } from '@react-three/fiber'
 import {
   BackSide,
   BoxGeometry,
   Color,
   CubeCamera,
+  type CubeTexture,
   HalfFloatType,
   LinearFilter,
   LinearSRGBColorSpace,
@@ -51,11 +52,14 @@ function bakeNebula(gl: WebGLRenderer, target: WebGLCubeRenderTarget): void {
   material.dispose()
 }
 
-/** Bakes the procedural nebula into a cube map and uses it as the scene background. Re-bakes on quality change. */
-export function Nebula() {
+/**
+ * Bakes the procedural nebula into a cube map (re-baked on quality change) and returns its texture,
+ * or null until the first bake. The render target is disposed on unmount / re-bake.
+ */
+export function useNebulaCubeMap(): CubeTexture | null {
   const gl = useThree((s) => s.gl)
-  const scene = useThree((s) => s.scene)
   const resolution = useGameStore((s) => QUALITY_PRESETS[s.quality].nebulaResolution)
+  const [texture, setTexture] = useState<CubeTexture | null>(null)
 
   useLayoutEffect(() => {
     const target = new WebGLCubeRenderTarget(resolution, {
@@ -67,12 +71,12 @@ export function Nebula() {
     })
     target.texture.colorSpace = LinearSRGBColorSpace
     bakeNebula(gl, target)
-    scene.background = target.texture
+    setTexture(target.texture)
     return () => {
-      if (scene.background === target.texture) scene.background = null
+      setTexture(null)
       target.dispose()
     }
-  }, [gl, scene, resolution])
+  }, [gl, resolution])
 
-  return null
+  return texture
 }

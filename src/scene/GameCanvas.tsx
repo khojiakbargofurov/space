@@ -1,12 +1,10 @@
 import { Canvas } from '@react-three/fiber'
 import { CAMERA, QUALITY_PRESETS } from '../game/constants'
 import { useGameStore } from '../game/store'
-import { AccretionDisk } from './AccretionDisk'
-import { BlackHole } from './BlackHole'
 import { FpsMeter } from './FpsMeter'
-import { Nebula } from './Nebula'
+import { LensingView } from './LensingView'
 import { OrbitCamera } from './OrbitCamera'
-import { Starfield } from './Starfield'
+import { PostEffects } from './PostEffects'
 
 export function GameCanvas() {
   const quality = useGameStore((s) => s.quality)
@@ -14,17 +12,18 @@ export function GameCanvas() {
 
   return (
     <Canvas
-      // Remount the renderer when antialias changes (it can't be toggled on a live context).
-      key={preset.antialias ? 'aa' : 'no-aa'}
       dpr={[1, preset.dpr]}
-      gl={{ antialias: preset.antialias, powerPreference: 'high-performance', alpha: false }}
+      // Anti-aliasing happens in the post-processing frame buffer (preset.msaa), not the canvas.
+      gl={{ antialias: false, powerPreference: 'high-performance', alpha: false, stencil: false }}
+      // Dev-only handle for profiling from the console (window.__r3f.gl / scene / camera).
+      onCreated={(state) => {
+        if (import.meta.env.DEV) Object.assign(window, { __r3f: state })
+      }}
       camera={{ fov: CAMERA.FOV, near: CAMERA.NEAR, far: CAMERA.FAR, position: [...CAMERA.START_POSITION] }}
     >
       <OrbitCamera />
-      <Nebula />
-      <Starfield />
-      <BlackHole />
-      <AccretionDisk />
+      <LensingView />
+      <PostEffects />
       <FpsMeter />
     </Canvas>
   )

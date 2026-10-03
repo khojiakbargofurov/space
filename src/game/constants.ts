@@ -63,29 +63,19 @@ export const ORBIT = {
   AUTO_ROTATE_RAD_PER_SEC: 0.04,
 } as const
 
-/** Event horizon sphere and the thin glow hugging its silhouette. */
-export const HORIZON_VISUAL = {
-  SEGMENTS: 64,
-  /** Glow ring radius, in units of rs. */
-  RING_RS: 1.1,
-  /** Gaussian width of the bright ring (units of rs). */
-  RING_WIDTH_RS: 0.07,
-  /** Exponential falloff of the soft halo beyond the ring (units of rs). */
-  HALO_FALLOFF_RS: 0.5,
-  HALO_STRENGTH: 0.18,
-  /** Billboard half-size (units of rs). */
-  EXTENT_RS: 3,
-  INTENSITY: 1.6,
-  COLOR: '#ffb978',
+/** Ray-traced gravitational lensing (null geodesics in the Schwarzschild metric). */
+export const LENSING = {
+  /** Rays passing closer than this are integrated numerically; outside, weak-field deflection 2rs/b is analytic. */
+  NUMERIC_RADIUS_RS: 30,
+  /** Step length = r * STEP_BUDGET / lensingSteps (adaptive: small near the hole, large far away). */
+  STEP_BUDGET: 7.7,
 } as const
 
-/** Accretion disk: thin, optically thin, Keplerian, Doppler-beamed. */
+/** Accretion disk: thin, semi-transparent, Keplerian, Doppler-beamed. Ray-traced inside the lensing shader. */
 export const DISK = {
   /** Inner edge, in units of rs (defaults to the ISCO). */
   INNER_RS: BLACK_HOLE.ISCO_RS,
   OUTER_RS: 14,
-  THETA_SEGMENTS: 192,
-  RADIAL_SEGMENTS: 12,
   /** Angular speed at the inner edge (rad/s); falls off as r^-1.5. */
   INNER_OMEGA: 0.55,
   /** Seconds per turbulence flow cycle (two cross-faded layers stop infinite wind-up). */
@@ -107,9 +97,9 @@ export const DISK = {
   TEMP_FALLOFF: 0.85,
   /** Multiplies observed temperature before the color ramp. */
   TEMP_SCALE: 1.0,
-  BRIGHTNESS: 2.6,
-  /** Cap on the 1/cos(i) brightening when viewed edge-on. */
-  MAX_GRAZING_BOOST: 3,
+  BRIGHTNESS: 5,
+  /** Face-on optical depth at full density; grows as 1/cos(i) at grazing angles. */
+  OPACITY: 0.7,
   /** Color ramp from cool outer gas to blue-shifted hot gas (sRGB hex). */
   COLOR_COOL: '#b8320c',
   COLOR_WARM: '#ff8a2e',
@@ -117,21 +107,24 @@ export const DISK = {
   COLOR_BLUE: '#b9d4ff',
 } as const
 
-/** Background stars: points on a camera-locked shell (no parallax, they are "at infinity"). */
+/**
+ * Procedural stars, evaluated per pixel from the (lensed) view direction so they bend around the hole.
+ * Each layer is a grid on the six cube faces with at most one star per cell.
+ */
 export const STARFIELD = {
-  SEED: 1337,
-  RADIUS: 9000,
   /** Fraction of stars concentrated in the galactic band. */
   BAND_FRACTION: 0.4,
-  /** Angular thickness of the band (radians, gaussian sigma). */
+  /** Thickness of the band (gaussian sigma of dot(dir, bandNormal)). */
   BAND_SIGMA: 0.13,
-  MIN_SIZE_PX: 1.2,
-  MAX_SIZE_PX: 4.5,
-  /** Higher = more faint stars relative to bright ones. */
-  BRIGHTNESS_POWER: 5,
-  /** HDR multiplier for the brightest stars (feeds bloom in stage 2). */
-  MAX_INTENSITY: 3,
-  TWINKLE: 0.12,
+  /** Per layer: grid cells per cube-face edge, share of starCount, HDR gain, gaussian radius in pixels. */
+  LAYERS: [
+    { grid: 160, share: 0.72, gain: 0.9, sizePx: 0.85 },
+    { grid: 80, share: 0.25, gain: 2.2, sizePx: 1.1 },
+    { grid: 36, share: 0.03, gain: 7, sizePx: 1.6 },
+  ],
+  /** Higher = more faint stars relative to bright ones within a layer. */
+  BRIGHTNESS_POWER: 3,
+  TWINKLE: 0.1,
   /** Star colors (sRGB hex) and their relative weights. */
   COLORS: ['#9db4ff', '#cdd9ff', '#f6f4ff', '#fff1df', '#ffd4a3', '#ffb173'],
   COLOR_WEIGHTS: [0.08, 0.17, 0.3, 0.22, 0.15, 0.08],
@@ -140,7 +133,7 @@ export const STARFIELD = {
 /** Shared orientation of the galactic plane (stars + nebula band). Normalized at use. */
 export const GALAXY_BAND_NORMAL = [0.32, 0.88, 0.35] as const
 
-/** Procedural nebula, baked once per quality change into a cube map (scene background). */
+/** Procedural nebula, baked once per quality change into a cube map sampled by the lensing shader. */
 export const NEBULA = {
   SEED: 4.2,
   /** Base noise frequency on the unit sphere. */
@@ -157,6 +150,22 @@ export const NEBULA = {
   COLOR_BAND: '#d8c3a5',
 } as const
 
+/** Post-processing (HDR, before tone mapping for bloom). */
+export const POST = {
+  BLOOM_THRESHOLD: 0.75,
+  BLOOM_SMOOTHING: 0.3,
+  BLOOM_INTENSITY: 0.85,
+  BLOOM_RADIUS: 0.72,
+  BLOOM_LEVELS: 7,
+  /** Chromatic aberration offset in UV units, scaled up toward the screen edges. */
+  CA_OFFSET: 0.0011,
+  /** Radius (0..1) inside which there is no aberration. */
+  CA_MODULATION_OFFSET: 0.25,
+  VIGNETTE_OFFSET: 0.32,
+  VIGNETTE_DARKNESS: 0.68,
+  GRAIN_OPACITY: 0.07,
+} as const
+
 export const DEBUG = {
   /** How often the FPS readout refreshes, in seconds. */
   FPS_SAMPLE_INTERVAL: 0.5,
@@ -168,15 +177,15 @@ export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high']
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
   low: {
-    dpr: 1, antialias: false, starCount: 2000, lensingSteps: 48, bloom: false, particles: 200,
+    dpr: 1, msaa: 0, starCount: 3000, lensingSteps: 48, bloom: false, particles: 200,
     diskOctaves: 3, nebulaResolution: 256,
   },
   medium: {
-    dpr: 1.5, antialias: true, starCount: 6000, lensingSteps: 96, bloom: true, particles: 600,
+    dpr: 1.5, msaa: 4, starCount: 7000, lensingSteps: 96, bloom: true, particles: 600,
     diskOctaves: 4, nebulaResolution: 512,
   },
   high: {
-    dpr: 2, antialias: true, starCount: 15000, lensingSteps: 160, bloom: true, particles: 1500,
+    dpr: 2, msaa: 4, starCount: 15000, lensingSteps: 160, bloom: true, particles: 1500,
     diskOctaves: 6, nebulaResolution: 768,
   },
 }

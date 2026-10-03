@@ -5,9 +5,10 @@ export type GamePhase = 'menu' | 'playing' | 'paused' | 'dead'
 export interface QualityPreset {
   /** Max device pixel ratio for the renderer. */
   dpr: number
-  antialias: boolean
+  /** MSAA samples for the post-processing frame buffer (0 = off). */
+  msaa: number
   starCount: number
-  /** Ray-march steps for the lensing shader (stage 2). */
+  /** Max geodesic integration steps per pixel in the lensing shader. */
   lensingSteps: number
   bloom: boolean
   /** Max live thrust/debris particles (stage 3+). */
