@@ -1,4 +1,5 @@
 import { useGameStore } from '../game/store'
+import { AudioDriver } from './AudioDriver'
 import { Bursts } from './Bursts'
 import { DeathSequence } from './DeathSequence'
 import { Debris } from './Debris'
@@ -45,6 +46,7 @@ export function World() {
       <Ship envMap={envMap} />
       <ThrustParticles />
       <Bursts />
+      <AudioDriver />
     </>
   )
 }

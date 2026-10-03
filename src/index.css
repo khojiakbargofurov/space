@@ -63,6 +63,31 @@ canvas {
   background: #9fe8a0;
 }
 
+.sound-toggle {
+  position: fixed;
+  top: 36px;
+  right: 8px;
+  padding: 2px 8px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9fe8a0;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.sound-toggle:hover {
+  color: #e8e8e8;
+}
+
+.sound-toggle.muted {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+
 .controls-hint {
   position: fixed;
   right: 8px;

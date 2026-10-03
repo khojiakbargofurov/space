@@ -621,6 +621,175 @@ export const HUD = {
   PICKUP_MARKER_RANGE: 1200,
 } as const
 
+/**
+ * Procedural sound (Web Audio, no files). Gains are linear (0..1 before the master compressor),
+ * frequencies in Hz, times in seconds. The music is a key of D: drone, pads and an arpeggio.
+ * Near the hole the ship's music drops in pitch by dilation^-PITCH_EXP and slows by dilation^-TEMPO_EXP,
+ * while the "universe shimmer" (light falling in from outside) flutters faster and rises (blueshift).
+ */
+export const AUDIO = {
+  MASTER_GAIN: 0.8,
+  MUSIC_GAIN: 0.55,
+  SFX_GAIN: 0.8,
+  SHIP_GAIN: 0.7,
+  /** Share of each bus sent to the procedural reverb, and the reverb tail length. */
+  REVERB_SEND: 0.35,
+  REVERB_SEC: 3.2,
+  REVERB_DECAY: 2.6,
+  /** Smoothing time constant for continuous parameters, and how often they are pushed (s). */
+  SMOOTH: 0.12,
+  PARAM_INTERVAL: 1 / 30,
+  /** Mute / unmute fade. */
+  MUTE_FADE: 0.08,
+  /** Seconds of looped white noise shared by every noise layer. */
+  NOISE_SEC: 2,
+  /** Time dilation → music pitch / tempo. Pitch never drops below MIN_PITCH, tempo never below MIN_TEMPO. */
+  PITCH_EXP: 0.22,
+  MIN_PITCH: 0.5,
+  TEMPO_EXP: 0.55,
+  MIN_TEMPO: 0.2,
+  /** Music low-pass: open while flying, closed after a death. */
+  MUSIC_CUTOFF: 5200,
+  MUSIC_CUTOFF_DEAD: 420,
+  /** Music level per phase (multiplies MUSIC_GAIN). */
+  MUSIC_MENU: 1,
+  MUSIC_FLYING: 0.8,
+  MUSIC_DEAD: 0.6,
+} as const
+
+export const DRONE = {
+  /** D1 sub, D2 body, A2 fifth. */
+  FREQS: [36.71, 73.42, 110],
+  GAINS: [0.5, 0.28, 0.12],
+  CUTOFF: 220,
+  /** Slow filter sweep: rate (Hz) and depth (Hz). */
+  LFO_RATE: 0.045,
+  LFO_DEPTH: 140,
+  GAIN: 0.55,
+  /** The drone swells by this much at full danger. */
+  DANGER_BOOST: 0.8,
+} as const
+
+export const PADS = {
+  /** Chord root (D3) and four voices per chord, in semitones from it. */
+  ROOT: 146.83,
+  CHORDS: [
+    [0, 7, 10, 14],
+    [-4, 3, 7, 12],
+    [-2, 2, 5, 9],
+    [-7, 0, 3, 8],
+  ],
+  /** Two oscillators per voice, detuned ± this many cents. */
+  DETUNE_CENTS: 8,
+  CUTOFF: 950,
+  Q: 0.6,
+  /** Chord-change glide (multiplied by the inverse tempo). */
+  GLIDE: 0.7,
+  /** Slow volume swell. */
+  SWELL_RATE: 0.07,
+  SWELL_DEPTH: 0.35,
+  GAIN: 0.12,
+} as const
+
+export const ARP = {
+  /** Seconds per note at tempo 1, notes per chord. */
+  STEP_SEC: 0.34,
+  STEPS_PER_CHORD: 16,
+  /** Per pattern step: chord tone index (0..3) and frequency multiplier over the pad voicing. */
+  PATTERN: [0, 1, 2, 3, 2, 1, 0, 2, 1, 3, 2, 0, 3, 1, 2, 3],
+  OCTAVE: [2, 2, 2, 2, 4, 2, 2, 4, 2, 2, 4, 2, 4, 2, 2, 4],
+  /** Round-robin pluck voices (each rings out under the next notes without clicks). */
+  VOICES: 3,
+  /** Pluck envelope: attack, decay time constant, peak level. */
+  ATTACK: 0.008,
+  DECAY: 0.22,
+  PEAK: 0.16,
+  /** Echo: delay time, feedback, wet level, damping cutoff. */
+  ECHO_SEC: 0.51,
+  ECHO_FEEDBACK: 0.42,
+  ECHO_WET: 0.5,
+  ECHO_CUTOFF: 2400,
+  /** Scheduler look-ahead (s). */
+  LOOKAHEAD: 0.15,
+  /** Arp level per phase. */
+  MENU_LEVEL: 0.55,
+  FLYING_LEVEL: 1,
+} as const
+
+/** Light from the outside universe: band-passed noise, tremolo rate × dilation, center rises with dilation. */
+export const SHIMMER = {
+  FREQ: 4200,
+  Q: 3,
+  /** Center frequency follows dilation up to this factor (blueshift). */
+  MAX_SHIFT: 2.2,
+  RATE: 0.6,
+  MAX_RATE: 24,
+  GAIN: 0.05,
+  /** Level at dilation 1 (fraction of GAIN); full at FULL_AT. */
+  BASE: 0.15,
+  FULL_AT: 3,
+} as const
+
+/** Ship sounds driven every frame by flight and hazard state. */
+export const SHIP_AUDIO = {
+  /** Main engine: sawtooth rumble + low-passed noise. */
+  ENGINE_FREQ: 42,
+  ENGINE_FREQ_THROTTLE: 22,
+  ENGINE_FREQ_BOOST: 26,
+  ENGINE_CUTOFF: 180,
+  ENGINE_CUTOFF_THROTTLE: 700,
+  ENGINE_CUTOFF_BOOST: 2200,
+  ENGINE_GAIN: 0.42,
+  ENGINE_NOISE: 0.6,
+  ENGINE_BOOST_GAIN: 0.5,
+  /** Idle hum while the ship has power. */
+  IDLE_GAIN: 0.05,
+  /** Reaction control: high-passed hiss. */
+  RCS_CUTOFF: 2600,
+  RCS_GAIN: 0.18,
+  /** Tidal groan: resonant low band, wobbling. */
+  TIDAL_FREQ: 95,
+  TIDAL_Q: 9,
+  TIDAL_WOBBLE_RATE: 0.8,
+  TIDAL_WOBBLE_DEPTH: 45,
+  TIDAL_GAIN: 0.9,
+  /** Disk plasma roar. */
+  HEAT_FREQ: 700,
+  HEAT_Q: 0.7,
+  HEAT_GAIN: 0.5,
+  /** Horizon proximity sub-bass. */
+  SUB_FREQ: 31,
+  SUB_GAIN: 0.45,
+} as const
+
+/** Warning tones, matched to the HUD warnings. Intervals are ship seconds between beep groups. */
+export const ALARM = {
+  LOW_FREQ: 620,
+  CRITICAL_FREQ: 880,
+  LOW_INTERVAL: 2.4,
+  CRITICAL_INTERVAL: 0.9,
+  BEEP_SEC: 0.09,
+  /** Gap between the two beeps of a critical alarm. */
+  DOUBLE_GAP: 0.16,
+  GAIN: 0.07,
+  /** Danger level (0..1) and tidal stress above which the alarm turns critical. */
+  DANGER_CRITICAL: 0.6,
+  TIDAL_CRITICAL: 0.35,
+} as const
+
+/** One-shot effects: overall levels per effect. */
+export const SFX = {
+  PICKUP: 0.35,
+  SHARD: 0.3,
+  SLINGSHOT: 0.4,
+  CLOSE_PASS: 0.45,
+  IMPACT: 0.7,
+  EXPLOSION: 0.9,
+  SPAGHETTI: 0.5,
+  POWER_DOWN: 0.45,
+  LAUNCH: 0.35,
+} as const
+
 export const DEBUG = {
   /** How often the FPS readout refreshes, in seconds. */
   FPS_SAMPLE_INTERVAL: 0.5,

@@ -5,6 +5,7 @@ const MENU_KEYS: [string, string][] = [
   ['Drag / wheel', 'orbit view'],
   ['G', 'quality'],
   ['F', 'fps'],
+  ['M', 'mute'],
   ['H', 'hide help'],
 ]
 
@@ -21,6 +22,7 @@ const FLIGHT_KEYS: [string, string][] = [
   ['Wheel', 'chase distance'],
   ['R', 'new run'],
   ['Enter', 'orbit view'],
+  ['M', 'mute'],
   ['H', 'hide help'],
 ]
 
