@@ -1,7 +1,12 @@
 import { Canvas } from '@react-three/fiber'
 import { CAMERA, QUALITY_PRESETS } from '../game/constants'
 import { useGameStore } from '../game/store'
+import { AccretionDisk } from './AccretionDisk'
+import { BlackHole } from './BlackHole'
 import { FpsMeter } from './FpsMeter'
+import { Nebula } from './Nebula'
+import { OrbitCamera } from './OrbitCamera'
+import { Starfield } from './Starfield'
 
 export function GameCanvas() {
   const quality = useGameStore((s) => s.quality)
@@ -15,7 +20,11 @@ export function GameCanvas() {
       gl={{ antialias: preset.antialias, powerPreference: 'high-performance', alpha: false }}
       camera={{ fov: CAMERA.FOV, near: CAMERA.NEAR, far: CAMERA.FAR, position: [...CAMERA.START_POSITION] }}
     >
-      <color attach="background" args={['#000000']} />
+      <OrbitCamera />
+      <Nebula />
+      <Starfield />
+      <BlackHole />
+      <AccretionDisk />
       <FpsMeter />
     </Canvas>
   )

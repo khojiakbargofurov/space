@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_QUALITY } from './constants'
+import { DEFAULT_QUALITY, QUALITY_ORDER } from './constants'
 import type { GamePhase, QualityLevel } from './types'
 
 interface GameState {
@@ -16,6 +16,7 @@ interface GameState {
 
   setPhase: (phase: GamePhase) => void
   setQuality: (quality: QualityLevel) => void
+  cycleQuality: () => void
   toggleFps: () => void
   /** Advance clocks by `shipDt` of ship time at the given dilation factor. */
   advanceClocks: (shipDt: number, dilation: number) => void
@@ -37,6 +38,8 @@ export const useGameStore = create<GameState>()((set) => ({
 
   setPhase: (phase) => set({ phase }),
   setQuality: (quality) => set({ quality }),
+  cycleQuality: () =>
+    set((s) => ({ quality: QUALITY_ORDER[(QUALITY_ORDER.indexOf(s.quality) + 1) % QUALITY_ORDER.length] })),
   toggleFps: () => set((s) => ({ showFps: !s.showFps })),
   advanceClocks: (shipDt, dilation) =>
     set((s) => ({

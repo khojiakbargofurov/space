@@ -12,4 +12,8 @@ export interface QualityPreset {
   bloom: boolean
   /** Max live thrust/debris particles (stage 3+). */
   particles: number
+  /** fbm octaves for accretion disk turbulence. */
+  diskOctaves: number
+  /** Cube map face size for the baked nebula background. */
+  nebulaResolution: number
 }
